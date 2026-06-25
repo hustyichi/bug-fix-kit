@@ -2,7 +2,7 @@
 
 ## 1. 产品定位
 
-**Bug Fix Kit**，简称 **bfk**，是一个面向 AI Coding Agent 的本地异常复现、日志诊断与代码修复插件。
+**Bug Fix Kit**，简称 **bfk**，是一个面向 AI Coding Agent 的本地异常复现、日志诊断与代码修复插件。初期版本先支持 Codex。
 
 MVP 阶段优先支持本地 Python HTTP 服务场景。用户先通过 `$bfk-init` 初始化项目调试知识，再通过 `$bfk-new` 创建一个具体异常问题。之后通过 `$bfk-run` 执行当前问题的请求脚本并采集日志，通过 `$bfk-diagnose` 定位异常原因，通过 `$bfk-fix` 执行代码修复，再继续 `$bfk-run` 进入下一轮验证。
 
