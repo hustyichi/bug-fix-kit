@@ -348,7 +348,14 @@ def build_request(params: dict) -> dict:
             "password": params["password"],
         },
     }
-````
+
+
+if __name__ == "__main__":
+    # 手工执行只打印构造的请求 JSON，便于本地快速核对，不发送 HTTP 请求。
+    import json
+
+    print(json.dumps(build_request(PARAMS), ensure_ascii=False, indent=2))
+```
 
 ### 6.8 runner.py 设计要求
 
@@ -358,7 +365,7 @@ def build_request(params: dict) -> dict:
 2. 参数后续默认不再通过命令行重复传入。
 3. 包含 `build_request(params)` 函数，返回本轮请求的完整描述。
 4. 可被 `$bfk-run` 加载和调用。
-5. 支持用户手工执行，用于本地快速验证请求是否正确。
+5. 支持用户手工执行：直接运行 `runner.py` 只打印 `build_request(PARAMS)` 构造的请求 JSON，用于本地快速核对，不发送 HTTP 请求。
 6. `runner.py` 自身只声明参数和构造请求，不负责创建 iteration 目录、执行请求、采集日志或保存产物。
 7. 请求执行、日志采集（默认 `External HTTP + file offset`）和产物落盘统一由 `$bfk-run` 完成。
 
@@ -373,16 +380,16 @@ def build_request(params: dict) -> dict:
 ### 7.2 使用方式
 
 ```text
-$bfk-run <issue_id|latest>
+$bfk-run [issue_id]
 ```
 
-示例：
+默认（省略 `issue_id`，操作最新 issue）：
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
-或者：
+或指定 issue：
 
 ```text
 $bfk-run 20260625_143012_login_failed
@@ -446,7 +453,8 @@ $bfk-run 20260625_143012_login_failed
     "error": "Internal Server Error"
   },
   "body_text": null,
-  "elapsed_ms": 238
+  "elapsed_ms": 238,
+  "transport_error": null
 }
 ```
 
@@ -456,6 +464,26 @@ $bfk-run 20260625_143012_login_failed
 2. 如果响应体不是 JSON，写入 `body_text`。
 3. `body` 和 `body_text` 至少一个有值。
 4. 如果响应体为空，允许二者为空，但需要记录 `empty_body: true`。
+5. 区分“传输失败”与“业务失败”：
+   - 业务失败：请求已收到 HTTP 响应（如 4xx/5xx），按上面格式记录，`transport_error` 为 `null`。
+   - 传输失败：请求未拿到 HTTP 响应，例如连接被拒、超时、服务未启动、DNS/端口错误、runner 抛出异常。
+6. 发生传输失败时仍然写入 `response.json`，但 `status_code`、`body`、`body_text` 均为 `null`，并在 `transport_error` 中记录错误类型与原始信息。
+
+传输失败示例：
+
+```json
+{
+  "status_code": null,
+  "headers": {},
+  "body": null,
+  "body_text": null,
+  "elapsed_ms": 12,
+  "transport_error": {
+    "type": "connection_refused",
+    "message": "Connection refused: localhost:8000"
+  }
+}
+```
 
 ### 7.7 output.log
 
@@ -480,13 +508,13 @@ External HTTP + file offset
 ### 8.2 使用方式
 
 ```text
-$bfk-diagnose <issue_id|latest>
+$bfk-diagnose [issue_id]
 ```
 
-示例：
+示例（默认最新 issue）：
 
 ```text
-$bfk-diagnose latest
+$bfk-diagnose
 ```
 
 ### 8.3 命令职责
@@ -550,7 +578,7 @@ failed
 
 ## Next Action
 
-Run `$bfk-fix latest`.
+Run `$bfk-fix`.
 ```
 
 ### 8.6 后续轮次诊断报告结构
@@ -608,7 +636,7 @@ failed
 
 ## Next Action
 
-Run `$bfk-fix latest`.
+Run `$bfk-fix`.
 ```
 
 ### 8.7 诊断结果状态
@@ -631,6 +659,8 @@ unknown
 | `blocked` | 当前问题无法继续自动处理，例如缺少本地数据、服务未启动、日志缺失 |
 | `unknown` | 证据不足，无法可靠判断                      |
 
+补充：当本轮 `response.json` 中 `transport_error` 不为空（连接失败、超时、服务未启动等传输层问题）时，`Problem Status` 应判为 `blocked`。这类问题不是代码缺陷，`$bfk-fix` 不应修改代码，用户需先恢复本地服务或网络环境再重新 `$bfk-run`。
+
 ---
 
 ## 9. 命令五：$bfk-fix
@@ -642,13 +672,13 @@ unknown
 ### 9.2 使用方式
 
 ```text
-$bfk-fix <issue_id|latest>
+$bfk-fix [issue_id]
 ```
 
-示例：
+示例（默认最新 issue）：
 
 ```text
-$bfk-fix latest
+$bfk-fix
 ```
 
 ### 9.3 命令职责
@@ -665,7 +695,7 @@ $bfk-fix latest
 修复后用户需要继续执行：
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
 说明：`fix.md` 写入与诊断相同的 iteration（即本轮）；修复效果的验证发生在下一次 `$bfk-run` 创建的新 iteration 中。
@@ -722,7 +752,7 @@ $bfk-run latest
 
 ## Next Action
 
-Run `$bfk-run latest` to verify.
+Run `$bfk-run` to verify.
 ```
 
 ### 9.7 修复原则
@@ -776,7 +806,7 @@ $bfk-new login_failed 13900000000
 ### 10.3 第一轮执行
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
 生成：
@@ -793,7 +823,7 @@ iterations/001/
 ### 10.4 第一轮诊断
 
 ```text
-$bfk-diagnose latest
+$bfk-diagnose
 ```
 
 生成：
@@ -808,7 +838,7 @@ iterations/001/
 ### 10.5 第一轮修复
 
 ```text
-$bfk-fix latest
+$bfk-fix
 ```
 
 生成：
@@ -823,7 +853,7 @@ iterations/001/
 ### 10.6 第二轮执行验证
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
 生成：
@@ -840,7 +870,7 @@ iterations/002/
 ### 10.7 第二轮诊断
 
 ```text
-$bfk-diagnose latest
+$bfk-diagnose
 ```
 
 如果问题已解决，`diagnosis.md` 中标记：
@@ -852,27 +882,22 @@ Problem Status: passed
 如果问题未解决，继续：
 
 ```text
-$bfk-fix latest
-$bfk-run latest
-$bfk-diagnose latest
+$bfk-fix
+$bfk-run
+$bfk-diagnose
 ```
 
 ---
 
-## 11. latest 解析规则
+## 11. issue 与 iteration 解析规则
 
-当用户传入：
+`$bfk-run`、`$bfk-diagnose`、`$bfk-fix` 的 `issue_id` 参数可选：
 
-```text
-latest
-```
-
-bfk 应按以下规则解析：
-
-1. 找到 `.bfk/issues/` 下创建时间最新的 issue 目录。
-2. 如果存在多个同时间目录，按目录名排序后取最后一个。
-3. 当前 issue 的最新 iteration 为 `iterations/` 下编号最大的目录。
-4. 如果 issue 下还没有 iteration，`$bfk-diagnose` 和 `$bfk-fix` 应提示先执行 `$bfk-run latest`。
+1. 省略 `issue_id` 时，默认选择 `.bfk/issues/` 下创建时间最新的 issue 目录。
+2. 显式传入 `issue_id` 时，操作该指定 issue（用于回到较早的 issue 继续处理）。
+3. 如果存在多个同时间目录，按目录名排序后取最后一个。
+4. 选定 issue 后，最新 iteration 为其 `iterations/` 下编号最大的目录。
+5. 如果 issue 下还没有 iteration，`$bfk-diagnose` 和 `$bfk-fix` 应提示先执行 `$bfk-run`。
 
 ---
 
@@ -946,7 +971,7 @@ $bfk-new login_failed 13900000000
 
 1. `issue.md` 记录原始输入和解析后的参数。
 2. `runner.py` 包含固定参数和请求构造逻辑。
-3. `runner.py` 可以独立执行。
+3. `runner.py` 可以独立执行，直接运行时打印构造的请求 JSON（不发送 HTTP 请求）。
 
 ---
 
@@ -955,7 +980,7 @@ $bfk-new login_failed 13900000000
 执行：
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
 应生成：
@@ -970,7 +995,7 @@ iterations/001/
 再次执行：
 
 ```text
-$bfk-run latest
+$bfk-run
 ```
 
 应生成：
@@ -995,7 +1020,7 @@ iterations/002/
 执行：
 
 ```text
-$bfk-diagnose latest
+$bfk-diagnose
 ```
 
 应在当前 iteration 下生成：
@@ -1027,7 +1052,7 @@ diagnosis.md
 执行：
 
 ```text
-$bfk-fix latest
+$bfk-fix
 ```
 
 应基于最新 `diagnosis.md` 修改代码，并在当前 iteration 下生成：
@@ -1056,9 +1081,9 @@ Bug Fix Kit MVP 的最终命令为：
 ```text
 $bfk-init
 $bfk-new <issue_name> <params>
-$bfk-run <issue_id|latest>
-$bfk-diagnose <issue_id|latest>
-$bfk-fix <issue_id|latest>
+$bfk-run [issue_id]
+$bfk-diagnose [issue_id]
+$bfk-fix [issue_id]
 ```
 
 最终目录结构为：
