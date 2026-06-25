@@ -2,361 +2,441 @@
 
 ## 1. 产品定位
 
-**Bug Fix Kit，简称 bfk**，是一个面向 AI Coding Agent 的本地 Bug 复现与修复插件。
+**Bug Fix Kit**，简称 **bfk**，是一个面向 AI Coding Agent 的本地异常复现、日志诊断与代码修复插件。
 
-MVP 阶段优先服务于本地 Python HTTP 服务调试场景。用户通过一个示例请求初始化可重放请求脚本；之后只需要提供一个新参数或少量参数，bfk 就可以辅助 AI 完成：
+MVP 阶段优先支持本地 Python HTTP 服务场景。用户先通过 `$bfk-init` 初始化项目调试知识，再通过 `$bfk-new` 创建一个具体异常问题。之后通过 `$bfk-run` 执行当前问题的请求脚本并采集日志，通过 `$bfk-diagnose` 定位异常原因，通过 `$bfk-fix` 执行代码修复，再继续 `$bfk-run` 进入下一轮验证。
 
-1. 构造真实本地请求
-2. 执行请求回放
-3. 基于日志文件 offset 采集本次新增日志
-4. 结合本地代码定位异常
-5. 执行最小代码修复
-6. 复用同一个请求进行回归验证
-7. 独立记录本次异常定位与修复结果
+核心目标是：
 
-MVP 不做完整调试平台，不做远程日志，不做 Trace 系统，不做 YAML 配置。
+> 将一次线上反馈问题沉淀为一个可持续迭代的本地异常处理会话。
 
 ---
 
 ## 2. 核心设计原则
 
-1. **只保留核心链路**
-   MVP 只保留初始化和修复两个主流程。
+### 2.1 项目知识与具体问题分离
 
-2. **不让用户理解 YAML / DSL**
-   请求构造逻辑以 Python 脚本形式呈现。
+`$bfk-init` 只初始化项目级知识，例如服务地址、日志路径、请求基础信息和修复原则。
 
-3. **可变参数前置**
-   每个请求 runner 顶部放置用户最常修改的参数。
+`$bfk-new` 才创建具体异常问题，并生成该问题专属的 Python 请求脚本。
 
-4. **请求脚本可独立执行**
-   用户可以手工运行 `.bfk/runner/<name>.py`，也可以由 `$bfk-fix` 自动调用。
+---
 
-5. **默认日志采集方式为 External HTTP + file offset**
-   请求前记录日志文件 offset，请求后读取新增日志。
+### 2.2 Issue 级 Runner
 
-6. **每次执行独立记录**
-   每次 `$bfk-fix` 都生成一个独立 run 目录，保存本次请求、响应、日志、诊断结论和验证结果。
+MVP 不维护项目级通用 runner 库。
 
-7. **响应和日志分开保存**
-   修复前后的 response 与 log 独立落盘，不合并到 markdown 文件中。
+每个异常问题都有自己的：
 
-8. **修复后验证必须复用同一个请求**
-   验证阶段优先复用本次 run 目录中的 `request.json`，避免重新拼接请求导致前后不一致。
+```text
+.bfk/issues/<issue_id>/runner.py
+```
+
+原因：
+
+1. 每个异常问题的参数在创建时已经确定。
+2. 后续迭代不应重复传参。
+3. 每个 issue 需要稳定复现同一个问题。
+4. 如果参数变化，应该创建新的 issue。
+5. issue 级 runner 更方便用户手工调整。
+6. `$bfk-run` 永远无需请求参数，语义稳定。
+
+---
+
+### 2.3 run 只执行，不诊断
+
+`$bfk-run` 只负责执行请求和采集日志，不做问题分析，不修改代码。
+
+---
+
+### 2.4 diagnose 只分析，不修复
+
+`$bfk-diagnose` 基于当前 iteration 的响应、日志和本地代码定位问题，输出 Markdown 格式诊断报告，不修改代码。
+
+---
+
+### 2.5 fix 只修复，不执行
+
+`$bfk-fix` 基于最新诊断报告进行代码修复，并输出修复报告。修复后用户继续执行 `$bfk-run` 验证。
+
+---
+
+### 2.6 Iteration 表达持续迭代
+
+MVP 不使用 before / after，也不使用 baseline / attempt。
+
+每一轮都是一个 iteration：
+
+```text
+执行请求 → 采集日志 → 诊断问题 → 必要时修复 → 下一轮执行验证
+```
 
 ---
 
 ## 3. MVP 命令设计
 
-MVP 只保留两个主命令。
-
-### 3.1 `$bfk-init`
-
-用于初始化一个请求 runner。
-
-#### 使用方式
+MVP 保留 5 个命令：
 
 ```text
-$bfk-init <request_name>
+$bfk-init
+$bfk-new
+$bfk-run
+$bfk-diagnose
+$bfk-fix
 ```
 
-示例：
-
-```text
-$bfk-init login
-```
-
-#### 用户需要提供的信息
-
-1. 示例请求，例如 curl 或真实 HTTP 请求信息
-2. 本地服务地址，例如 `http://localhost:8000`
-3. 日志文件路径，例如 `logs/app.log`
-4. 后续常用可变参数
-5. 如果用户只提供一个参数，该参数默认映射到哪个字段
-
-#### 输出产物
-
-```text
-.bfk/runner/<request_name>.py
-```
-
-示例：
-
-```text
-.bfk/runner/login.py
-```
-
-#### 职责
-
-`$bfk-init` 负责：
-
-1. 创建 `.bfk/` 根目录
-2. 创建 `.bfk/runner/` 目录
-3. 基于示例请求生成 Python runner 脚本
-4. 将可变参数放到 runner 文件顶部
-5. 设置 `DEFAULT_SINGLE_PARAM_NAME`
-6. 写入 base_url、log_files、等待日志时间等基础配置
-7. 确保 runner 可以独立执行
+| 命令              | 是否需要请求参数 | 是否执行请求 | 是否诊断 | 是否修复 | 核心产物                                        |
+| --------------- | -------: | -----: | ---: | ---: | ------------------------------------------- |
+| `$bfk-init`     |        否 |      否 |    否 |    否 | `.bfk/PROJECT.md`                           |
+| `$bfk-new`      |        是 |      否 |    否 |    否 | `issue.md`、`runner.py`                      |
+| `$bfk-run`      |        否 |      是 |    否 |    否 | `request.json`、`response.json`、`output.log` |
+| `$bfk-diagnose` |        否 |      否 |    是 |    否 | `diagnosis.md`                              |
+| `$bfk-fix`      |        否 |      否 |    否 |    是 | `fix.md`                                    |
 
 ---
 
-### 3.2 `$bfk-fix`
+## 4. 目录结构
 
-用于基于新参数完成完整 Bug 修复闭环。
-
-#### 使用方式
-
-```text
-$bfk-fix <request_name> <params>
-```
-
-示例一：只给一个参数
-
-```text
-$bfk-fix login 13900000000
-```
-
-示例二：给多个参数
-
-```text
-$bfk-fix login account=13900000000 password=123456
-```
-
-#### 职责
-
-`$bfk-fix` 负责：
-
-1. 找到 `.bfk/runner/<request_name>.py`
-2. 将用户输入参数传给 runner
-3. 执行修复前请求回放
-4. 保存修复前请求、响应、日志
-5. 结合本地代码和日志定位异常
-6. 执行最小代码修复
-7. 复用同一个 `request.json` 执行修复后验证
-8. 保存修复后响应和日志
-9. 生成本次异常定位与修复结果记录
-
----
-
-## 4. MVP 目录结构
-
-MVP 目录结构如下：
+最终 MVP 目录结构如下：
 
 ```text
 .bfk/
-├── runner/
-│   └── login.py
-└── runs/
-    └── 20260625_143012_login/
-        ├── request.json
-        ├── before_response.json
-        ├── before.log
-        ├── after_response.json
-        ├── after.log
-        └── result.json
+├── PROJECT.md
+└── issues/
+    └── <issue_id>/
+        ├── issue.md
+        ├── runner.py
+        └── iterations/
+            └── <iteration_no>/
+                ├── request.json
+                ├── response.json
+                ├── output.log
+                ├── diagnosis.md
+                └── fix.md
 ```
 
-### 4.1 `.bfk/runner/`
+说明：
 
-保存请求 runner 脚本。
+1. `.bfk/PROJECT.md` 保存项目级调试知识。
+2. `.bfk/issues/<issue_id>/` 表示一次具体异常问题处理会话。
+3. `runner.py` 是当前 issue 专属的请求脚本。
+4. `iterations/<iteration_no>/` 表示第 N 轮执行、诊断、修复过程。
+5. `fix.md` 是可选文件，只有该轮执行了修复才会生成。
+6. 如果某一轮诊断已经通过，则该轮不需要 `fix.md`。
 
-每个请求一个 Python 文件。
+---
+
+## 5. 命令一：$bfk-init
+
+### 5.1 命令作用
+
+初始化当前项目的 bfk 调试知识。
+
+### 5.2 使用方式
 
 ```text
-.bfk/runner/login.py
-.bfk/runner/create_order.py
-.bfk/runner/query_order.py
+$bfk-init
 ```
 
-### 4.2 `.bfk/runs/`
+### 5.3 用户输入
 
-保存每次 `$bfk-fix` 的独立执行记录。
+用户需要提供项目级信息，例如：
+
+```text
+本地服务地址：http://localhost:8000
+日志文件路径：logs/app.log
+日志采集方式：file offset
+默认请求头：Content-Type: application/json
+鉴权方式：从环境变量 LOCAL_AUTH_TOKEN 读取
+```
+
+### 5.4 输出产物
+
+```text
+.bfk/PROJECT.md
+```
+
+### 5.5 PROJECT.md 示例
+
+```markdown
+# Bug Fix Kit Project Knowledge
+
+## Local Service
+
+- Base URL: http://localhost:8000
+- Service should be started manually before running bfk.
+
+## Logs
+
+- Log files:
+  - logs/app.log
+
+## Log Capture
+
+Default strategy:
+
+1. Record file offset before request.
+2. Execute HTTP request.
+3. Wait 2 seconds.
+4. Read new logs from previous offset.
+
+## Request Defaults
+
+Default headers:
+
+- Content-Type: application/json
+
+Auth:
+
+- Authorization token is read from LOCAL_AUTH_TOKEN.
+
+## Fix Principles
+
+- Diagnose before fixing.
+- Prefer minimal code changes.
+- Do not refactor unrelated code.
+- Do not change public API contract unless necessary.
+- After fixing, run `$bfk-run` again to verify.
+```
+
+### 5.6 职责边界
+
+`$bfk-init` 只创建或更新项目级知识，不创建具体异常问题，不执行请求，不诊断，不修复。
+
+---
+
+## 6. 命令二：$bfk-new
+
+### 6.1 命令作用
+
+创建一个新的异常问题，并生成该问题专属的 Python 请求脚本。
+
+### 6.2 使用方式
+
+```text
+$bfk-new <issue_name> <params>
+```
+
+示例：
+
+```text
+$bfk-new login_failed 13900000000
+```
+
+或者：
+
+```text
+$bfk-new create_order_failed user_id=10086 sku_id=sku_abc coupon=SUMMER2026
+```
+
+参数解析规则：
+
+1. `key=value` 形式直接按键名写入 `runner.py` 的 `PARAMS`。
+2. 位置参数结合 `.bfk/PROJECT.md` 与目标接口语义推断字段名（如登录场景将手机号推断为 `account`）。
+3. 接口必需但无法从输入推断的参数（如 `password`），在 `runner.py` 中以空占位值生成，由用户在首次 `$bfk-run` 前手工补全。
+
+### 6.3 命令职责
+
+`$bfk-new` 负责：
+
+1. 读取 `.bfk/PROJECT.md`
+2. 理解用户输入的异常参数
+3. 创建新的 issue 目录
+4. 生成该 issue 专属的 `runner.py`
+5. 生成 `issue.md`
+6. 初始化空的 `iterations/` 目录
+
+### 6.4 输出目录
+
+```text
+.bfk/issues/<issue_id>/
+```
 
 目录命名建议：
 
 ```text
-<YYYYMMDD_HHMMSS>_<request_name>
+<YYYYMMDD_HHMMSS>_<issue_name>
 ```
 
 示例：
 
 ```text
-.bfk/runs/20260625_143012_login/
+.bfk/issues/20260625_143012_login_failed/
 ```
 
----
-
-## 5. Runner 脚本设计
-
-Runner 是 MVP 的核心产物。
-
-它既是请求构造脚本，也是本地请求回放脚本。
-
-### 5.1 Runner 文件位置
+### 6.5 输出产物
 
 ```text
-.bfk/runner/<request_name>.py
+.bfk/issues/20260625_143012_login_failed/
+├── issue.md
+├── runner.py
+└── iterations/
 ```
+
+### 6.6 issue.md
+
+`issue.md` 保存该异常问题的自然语言描述、原始输入和解析后的参数。
 
 示例：
 
-```text
-.bfk/runner/login.py
-```
+````markdown
+# Issue: login_failed
 
-### 5.2 Runner 顶部结构
+## User Input
 
-Runner 顶部必须放置用户最常修改的参数。
+账号 13900000000 登录失败。
 
-示例：
+## Parsed Parameters
+
+- account: 13900000000
+- password: (required, 无法从输入推断，请在 runner.py 中手工补全)
+
+## Expected Goal
+
+复现登录异常，基于日志定位原因，并修复本地代码。
+
+## Runner
+
+Runner script: `.bfk/issues/20260625_143012_login_failed/runner.py`
+````
+
+### 6.7 runner.py
+
+`runner.py` 是当前异常问题专属的请求脚本。
+
+它保存当前问题的固定参数，并负责构造请求；请求的执行与日志采集由 `$bfk-run` 完成。
+
+示例结构：
 
 ```python
 # ============================================================
-# 1. 可变参数区：用户通常只需要修改这里
+# Bug Fix Kit Issue Runner
+# This runner belongs to one specific issue.
 # ============================================================
 
-PARAMS = {
-    "account": "13800000000",
-    "password": "123456",
-}
+import os
 
-DEFAULT_SINGLE_PARAM_NAME = "account"
+ISSUE_NAME = "login_failed"
+
+PARAMS = {
+    # account 解析自 $bfk-new 的输入
+    "account": "13900000000",
+    # password 无法从输入推断，请在首次执行前手工补全
+    "password": "",
+}
 
 BASE_URL = "http://localhost:8000"
 
 LOG_FILES = [
-    "logs/app.log",
+    "logs/app.log"
 ]
 
 AFTER_REQUEST_WAIT_SECONDS = 2
-```
 
-### 5.3 Runner 请求构造函数
 
-Runner 中必须包含 `build_request` 函数。
-
-示例：
-
-```python
 def build_request(params: dict) -> dict:
     return {
         "method": "POST",
         "url": f"{BASE_URL}/api/login",
         "headers": {
             "Content-Type": "application/json",
-            "X-BugFix-Run-Id": params["run_id"],
+            "Authorization": f"Bearer {os.environ.get('LOCAL_AUTH_TOKEN', '')}",
+            "X-BugFix-Issue": ISSUE_NAME,
         },
         "json": {
             "account": params["account"],
             "password": params["password"],
         },
     }
+````
+
+### 6.8 runner.py 设计要求
+
+`runner.py` 必须满足：
+
+1. 顶部包含当前 issue 的固定参数。
+2. 参数后续默认不再通过命令行重复传入。
+3. 包含 `build_request(params)` 函数，返回本轮请求的完整描述。
+4. 可被 `$bfk-run` 加载和调用。
+5. 支持用户手工执行，用于本地快速验证请求是否正确。
+6. `runner.py` 自身只声明参数和构造请求，不负责创建 iteration 目录、执行请求、采集日志或保存产物。
+7. 请求执行、日志采集（默认 `External HTTP + file offset`）和产物落盘统一由 `$bfk-run` 完成。
+
+---
+
+## 7. 命令三：$bfk-run
+
+### 7.1 命令作用
+
+执行当前异常问题的请求脚本，并采集本轮响应和日志。
+
+### 7.2 使用方式
+
+```text
+$bfk-run <issue_id|latest>
 ```
-
-### 5.4 Runner 必须支持的执行能力
-
-Runner 至少需要支持：
-
-1. 从命令行接收单参数
-2. 从命令行接收 key=value 参数
-3. 根据 `DEFAULT_SINGLE_PARAM_NAME` 解析单参数
-4. 构造完整 HTTP 请求
-5. 保存完整请求到 `request.json`
-6. 请求前记录日志文件 offset
-7. 执行 HTTP 请求
-8. 请求后读取新增日志
-9. 保存 response 和 log 到指定 run 目录
-
-### 5.5 Runner 推荐命令行形式
-
-Runner 可以被 `$bfk-fix` 自动调用，也可以被用户手工调用。
 
 示例：
 
 ```text
-python .bfk/runner/login.py --single 13900000000 --out .bfk/runs/20260625_143012_login --phase before
+$bfk-run latest
 ```
 
 或者：
 
 ```text
-python .bfk/runner/login.py --account 13900000000 --password 123456 --out .bfk/runs/20260625_143012_login --phase before
+$bfk-run 20260625_143012_login_failed
 ```
 
-### 5.6 Runner phase 设计
+### 7.3 命令职责
 
-Runner 支持两个 phase：
+`$bfk-run` 负责：
+
+1. 找到目标 issue 目录。
+2. 读取 issue 的 `runner.py`。
+3. 创建下一轮 iteration 目录。
+4. 执行 runner。
+5. 请求前记录日志文件 offset。
+6. 请求后采集新增日志。
+7. 保存当前 iteration 的真实请求。
+8. 保存当前 iteration 的响应。
+9. 保存当前 iteration 的日志。
+
+### 7.4 输出产物
+
+第一次执行：
 
 ```text
-before
-after
+.bfk/issues/20260625_143012_login_failed/
+└── iterations/
+    └── 001/
+        ├── request.json
+        ├── response.json
+        └── output.log
 ```
 
-#### before
-
-修复前执行，生成：
+第二次执行：
 
 ```text
-request.json
-before_response.json
-before.log
+.bfk/issues/20260625_143012_login_failed/
+└── iterations/
+    └── 002/
+        ├── request.json
+        ├── response.json
+        └── output.log
 ```
 
-#### after
+### 7.5 为什么每轮保存 request.json
 
-修复后验证，复用已有 `request.json`，生成：
+每轮都保存 `request.json`，原因是：
 
-```text
-after_response.json
-after.log
-```
+1. 明确记录该轮真实执行的请求。
+2. 如果 runner 被手工调整，可以追踪请求差异。
+3. 某些字段如 timestamp、requestId 可能每轮变化。
+4. 诊断时可以引用当前 iteration 的真实请求。
+5. 不依赖隐含上下文。
 
----
-
-## 6. Run 目录产物设计
-
-每次 `$bfk-fix` 生成一个独立 run 目录。
-
-示例：
-
-```text
-.bfk/runs/20260625_143012_login/
-```
-
-### 6.1 `request.json`
-
-保存本次真实发出的完整请求。
-
-示例：
-
-```json
-{
-  "method": "POST",
-  "url": "http://localhost:8000/api/login",
-  "headers": {
-    "Content-Type": "application/json",
-    "X-BugFix-Run-Id": "bfk-20260625-143012-login"
-  },
-  "json": {
-    "account": "13900000000",
-    "password": "123456"
-  }
-}
-```
-
-说明：
-
-1. `request.json` 是本次执行的事实来源。
-2. 修复后验证必须复用该文件。
-3. 不允许验证阶段重新根据参数拼接请求。
-
----
-
-### 6.2 `before_response.json`
-
-保存修复前 HTTP 响应。
-
-建议结构：
+### 7.6 response.json 格式
 
 ```json
 {
@@ -365,333 +445,654 @@ after.log
   "body": {
     "error": "Internal Server Error"
   },
+  "body_text": null,
   "elapsed_ms": 238
-}
-```
-
-如果响应 body 不是 JSON，则保存为：
-
-```json
-{
-  "status_code": 500,
-  "headers": {},
-  "body_text": "Internal Server Error",
-  "elapsed_ms": 238
-}
-```
-
----
-
-### 6.3 `before.log`
-
-保存修复前本次请求新增日志。
-
-内容来自：
-
-```text
-请求前 log file offset
-请求后 log file offset
-```
-
-只保存 offset 之后新增的日志内容。
-
----
-
-### 6.4 `after_response.json`
-
-保存修复后 HTTP 响应。
-
-结构同 `before_response.json`。
-
----
-
-### 6.5 `after.log`
-
-保存修复后本次请求新增日志。
-
-结构同 `before.log`。
-
----
-
-### 6.6 `result.json`
-
-保存本次异常定位、修复和验证结果。
-
-示例结构：
-
-```json
-{
-  "request_name": "login",
-  "run_id": "20260625_143012_login",
-  "input": "13900000000",
-  "status": "pass",
-  "issue": {
-    "symptom": "登录接口返回 500",
-    "type": "code_bug",
-    "root_cause": "账号不存在时 login_service 未处理 None 分支，后续访问 user.status 导致异常",
-    "evidence": [
-      "before_response.json status_code=500",
-      "before.log 中出现 AttributeError: 'NoneType' object has no attribute 'status'"
-    ],
-    "related_files": [
-      "app/services/login_service.py"
-    ]
-  },
-  "fix": {
-    "summary": "增加账号不存在时的显式处理，返回业务错误",
-    "changed_files": [
-      "app/services/login_service.py"
-    ],
-    "risk": "影响范围较小，仅影响账号不存在分支"
-  },
-  "verification": {
-    "status": "pass",
-    "before_status_code": 500,
-    "after_status_code": 200,
-    "error_log_after_fix": false
-  }
 }
 ```
 
 说明：
 
-1. `result.json` 是本次异常定位问题的独立记录。
-2. 它不保存完整日志和完整响应，只保存结论和引用。
-3. 完整响应与日志分别保存在对应文件中。
+1. 如果响应体是 JSON，写入 `body`。
+2. 如果响应体不是 JSON，写入 `body_text`。
+3. `body` 和 `body_text` 至少一个有值。
+4. 如果响应体为空，允许二者为空，但需要记录 `empty_body: true`。
 
----
+### 7.7 output.log
 
-## 7. 核心执行流程
+`output.log` 保存当前 iteration 请求期间新增日志。
 
-### 7.1 初始化流程
+日志采集方式来自 `.bfk/PROJECT.md` 和 `runner.py` 中的配置。
 
-```text
-$bfk-init login
-  ↓
-用户提供示例请求
-  ↓
-AI 分析请求结构
-  ↓
-AI 提取可变参数
-  ↓
-AI 生成 .bfk/runner/login.py
-  ↓
-用户确认顶部 PARAMS 是否合理
-  ↓
-初始化完成
-```
-
-初始化完成后，用户应该能直接执行：
-
-```text
-python .bfk/runner/login.py --single 13900000000 --out .bfk/runs/manual_login --phase before
-```
-
----
-
-### 7.2 修复流程
-
-```text
-$bfk-fix login 13900000000
-  ↓
-创建 .bfk/runs/<timestamp>_login/
-  ↓
-调用 .bfk/runner/login.py --phase before
-  ↓
-生成 request.json
-  ↓
-生成 before_response.json
-  ↓
-生成 before.log
-  ↓
-AI 读取 request.json、before_response.json、before.log 和本地代码
-  ↓
-定位异常根因
-  ↓
-执行最小代码修复
-  ↓
-调用 .bfk/runner/login.py --phase after
-  ↓
-复用 request.json 重新请求
-  ↓
-生成 after_response.json
-  ↓
-生成 after.log
-  ↓
-生成 result.json
-```
-
----
-
-## 8. 日志采集方案
-
-MVP 默认使用：
+MVP 默认：
 
 ```text
 External HTTP + file offset
 ```
 
-### 8.1 采集逻辑
+---
 
-1. 请求前读取每个日志文件的当前 size
-2. 执行 HTTP 请求
-3. 等待 `AFTER_REQUEST_WAIT_SECONDS`
-4. 从请求前 size 开始读取新增内容
-5. 写入 `before.log` 或 `after.log`
+## 8. 命令四：$bfk-diagnose
 
-### 8.2 默认不做的事情
+### 8.1 命令作用
 
-MVP 不做：
+基于当前 iteration 的执行结果和本地代码定位异常原因。
 
-1. 清空日志文件
-2. 强依赖 run_id 过滤
-3. 自动修改服务端 logging
-4. OpenTelemetry trace
-5. 远程日志拉取
+### 8.2 使用方式
 
-### 8.3 预留增强能力
+```text
+$bfk-diagnose <issue_id|latest>
+```
 
-后续可以增加：
+示例：
 
-1. `X-BugFix-Run-Id` + 服务端 logging middleware
-2. run_id 日志过滤
-3. in-process FastAPI / Flask test client
-4. OpenTelemetry trace id 关联
+```text
+$bfk-diagnose latest
+```
+
+### 8.3 命令职责
+
+`$bfk-diagnose` 负责：
+
+1. 读取 `.bfk/PROJECT.md`
+2. 读取 issue 的 `issue.md`
+3. 读取最新 iteration 的 `request.json`
+4. 读取最新 iteration 的 `response.json`
+5. 读取最新 iteration 的 `output.log`
+6. 如果不是第一轮，读取上一轮 `diagnosis.md`
+7. 如果不是第一轮，读取上一轮 `fix.md`
+8. 结合本地代码定位异常
+9. 判断问题是否已经解决
+10. 输出 Markdown 格式诊断报告
+
+### 8.4 输出产物
+
+```text
+.bfk/issues/<issue_id>/iterations/<n>/diagnosis.md
+```
+
+### 8.5 第一轮诊断报告结构
+
+```markdown
+# Diagnosis Report
+
+## Iteration
+
+001
+
+## Execution Summary
+
+- Request: POST /api/login
+- Status Code: 500
+- Key Logs:
+  - AttributeError: 'NoneType' object has no attribute 'status'
+
+## Problem Status
+
+failed
+
+## Root Cause
+
+账号不存在时，login_service 未处理 user 为空的情况，后续访问 user.status 导致异常。
+
+## Evidence
+
+- `iterations/001/response.json` 返回 500
+- `iterations/001/output.log` 出现 NoneType 异常
+- `app/services/login_service.py` 中缺少 user 为空分支处理
+
+## Related Files
+
+- `app/services/login_service.py`
+
+## Suggested Fix
+
+增加账号不存在时的显式处理，返回业务错误。
+
+## Next Action
+
+Run `$bfk-fix latest`.
+```
+
+### 8.6 后续轮次诊断报告结构
+
+后续轮次需要额外回答：
+
+1. 上一轮问题是否已修复？
+2. 如果没有修复，现象是否变化？
+3. 新问题和上一轮问题是什么关系？
+4. 是否继续修复？
+
+示例：
+
+```markdown
+# Diagnosis Report
+
+## Iteration
+
+002
+
+## Previous Diagnosis
+
+上一轮判断 login_service 未处理 user 为空。
+
+## Previous Fix
+
+上一轮增加了 user 为空判断。
+
+## Current Execution Summary
+
+- Status Code: 500
+- Key Logs:
+  - AttributeError: 'NoneType' object has no attribute 'status'
+
+## Problem Status
+
+failed
+
+## Change Compared With Previous Iteration
+
+接口仍然返回 500，但错误点从 user 为空变为 user.status 为空。
+
+## Root Cause
+
+上一轮修复只处理了 user 对象为空，没有处理 user.status 为空的异常分支。
+
+## Evidence
+
+- `iterations/002/output.log`
+- `app/services/login_service.py`
+
+## Suggested Fix
+
+继续增加 user.status 为空时的兜底处理。
+
+## Next Action
+
+Run `$bfk-fix latest`.
+```
+
+### 8.7 诊断结果状态
+
+`diagnosis.md` 中的 `Problem Status` 建议使用以下值：
+
+```text
+failed
+passed
+blocked
+unknown
+```
+
+含义：
+
+| 状态        | 含义                               |
+| --------- | -------------------------------- |
+| `failed`  | 请求执行成功，但问题仍存在，需要继续处理             |
+| `passed`  | 当前问题已验证通过                        |
+| `blocked` | 当前问题无法继续自动处理，例如缺少本地数据、服务未启动、日志缺失 |
+| `unknown` | 证据不足，无法可靠判断                      |
 
 ---
 
-## 9. 异常定位与修复原则
+## 9. 命令五：$bfk-fix
 
-`$bfk-fix` 在定位和修复时遵循以下原则：
+### 9.1 命令作用
 
-1. 优先基于 `before_response.json` 和 `before.log` 判断问题。
-2. 必须结合本地代码定位根因，不只依赖日志文本。
-3. 修复前应形成明确根因判断。
-4. 采用最小代码修改。
-5. 不做顺手重构。
-6. 不随意修改接口协议。
-7. 修复后必须执行回归验证。
-8. 如果验证失败，应在 `result.json` 中记录失败原因。
+基于当前 iteration 的诊断报告（`diagnosis.md`）修复代码。
+
+### 9.2 使用方式
+
+```text
+$bfk-fix <issue_id|latest>
+```
+
+示例：
+
+```text
+$bfk-fix latest
+```
+
+### 9.3 命令职责
+
+`$bfk-fix` 负责：
+
+1. 读取当前 iteration 的 `diagnosis.md`
+2. 判断是否适合自动修复
+3. 按诊断报告执行最小代码修改
+4. 生成本轮修复记录
+
+它不自动执行下一轮请求。
+
+修复后用户需要继续执行：
+
+```text
+$bfk-run latest
+```
+
+说明：`fix.md` 写入与诊断相同的 iteration（即本轮）；修复效果的验证发生在下一次 `$bfk-run` 创建的新 iteration 中。
+
+### 9.4 适合自动修复的条件
+
+当最新 `diagnosis.md` 满足以下条件时，才建议执行自动修复：
+
+1. `Problem Status` 为 `failed`
+2. 根因明确
+3. 相关文件明确
+4. 问题类型属于代码缺陷
+5. 不是本地数据缺失、服务未启动、权限缺失、依赖未 Mock 等环境问题
+
+如果 `Problem Status` 为 `passed`，说明本轮问题已验证通过，`$bfk-fix` 不修改代码，直接提示无需修复。
+
+如果根因不明确，或属于本地数据缺失、服务未启动、权限缺失、依赖未 Mock 等环境问题，`$bfk-fix` 应拒绝修改代码，并在当前 iteration 下生成 `fix.md` 说明原因。
+
+### 9.5 输出产物
+
+```text
+.bfk/issues/<issue_id>/iterations/<n>/fix.md
+```
+
+### 9.6 fix.md 示例
+
+```markdown
+# Fix Report
+
+## Iteration
+
+001
+
+## Diagnosis Used
+
+`iterations/001/diagnosis.md`
+
+## Fix Summary
+
+增加账号不存在时的显式处理，避免 user 为空时继续访问 user.status。
+
+## Changed Files
+
+- `app/services/login_service.py`
+
+## Change Details
+
+- 在查询用户后增加 None 判断
+- 用户不存在时返回明确业务错误
+
+## Risk
+
+影响范围集中在登录异常分支，不改变正常登录流程。
+
+## Next Action
+
+Run `$bfk-run latest` to verify.
+```
+
+### 9.7 修复原则
+
+`$bfk-fix` 必须遵守：
+
+1. 优先采用最小修改。
+2. 不做顺手重构。
+3. 不随意修改接口协议。
+4. 不吞掉真实异常。
+5. 不绕过业务校验。
+6. 不修改无关文件。
+7. 修复报告必须说明修改文件和风险。
+8. 修复后不自动执行请求，由 `$bfk-run` 显式进入下一轮。
 
 ---
 
-## 10. MVP 不包含的能力
+## 10. 完整使用链路
+
+### 10.1 初始化项目
+
+```text
+$bfk-init
+```
+
+生成：
+
+```text
+.bfk/PROJECT.md
+```
+
+---
+
+### 10.2 创建异常问题
+
+```text
+$bfk-new login_failed 13900000000
+```
+
+生成：
+
+```text
+.bfk/issues/20260625_143012_login_failed/
+├── issue.md
+├── runner.py
+└── iterations/
+```
+
+---
+
+### 10.3 第一轮执行
+
+```text
+$bfk-run latest
+```
+
+生成：
+
+```text
+iterations/001/
+├── request.json
+├── response.json
+└── output.log
+```
+
+---
+
+### 10.4 第一轮诊断
+
+```text
+$bfk-diagnose latest
+```
+
+生成：
+
+```text
+iterations/001/
+└── diagnosis.md
+```
+
+---
+
+### 10.5 第一轮修复
+
+```text
+$bfk-fix latest
+```
+
+生成：
+
+```text
+iterations/001/
+└── fix.md
+```
+
+---
+
+### 10.6 第二轮执行验证
+
+```text
+$bfk-run latest
+```
+
+生成：
+
+```text
+iterations/002/
+├── request.json
+├── response.json
+└── output.log
+```
+
+---
+
+### 10.7 第二轮诊断
+
+```text
+$bfk-diagnose latest
+```
+
+如果问题已解决，`diagnosis.md` 中标记：
+
+```text
+Problem Status: passed
+```
+
+如果问题未解决，继续：
+
+```text
+$bfk-fix latest
+$bfk-run latest
+$bfk-diagnose latest
+```
+
+---
+
+## 11. latest 解析规则
+
+当用户传入：
+
+```text
+latest
+```
+
+bfk 应按以下规则解析：
+
+1. 找到 `.bfk/issues/` 下创建时间最新的 issue 目录。
+2. 如果存在多个同时间目录，按目录名排序后取最后一个。
+3. 当前 issue 的最新 iteration 为 `iterations/` 下编号最大的目录。
+4. 如果 issue 下还没有 iteration，`$bfk-diagnose` 和 `$bfk-fix` 应提示先执行 `$bfk-run latest`。
+
+---
+
+## 12. MVP 不包含的能力
 
 MVP 暂不包含：
 
-1. `$bfk-status`
-2. `$bfk-verify`
-3. `$bfk-run`
-4. `$bfk-diagnose`
-5. YAML 配置
-6. `.bfk/config.py`
-7. `.bfk/context.md`
-8. `.bfk/runtime/`
-9. Markdown 格式的响应与日志保存
-10. 单独的 `patch.diff`
-11. 单独的 `code_review.md`
-12. 远程日志
-13. 分布式链路追踪
-14. 多服务编排
-15. 自动 Mock 外部依赖
-16. 数据库快照
-17. Web UI
-
-这些能力如果后续需求明确，再逐步补充。
+1. 项目级 `.bfk/runner/` 通用请求库
+2. `$bfk-status`
+3. `$bfk-verify`
+4. `$bfk-auto`
+5. 远程日志
+6. OpenTelemetry
+7. 多服务链路追踪
+8. 自动 Mock 外部依赖
+9. 数据库快照
+10. Web UI
+11. 自动提交 commit
+12. YAML 配置
+13. 自动判断所有请求类型
+14. 多 issue 并发执行管理
+15. 自动压缩历史日志
+16. 自动生成测试用例
 
 ---
 
-## 11. MVP 验收标准
+## 13. 验收标准
 
-### 11.1 初始化验收
+### 13.1 init 验收
 
 执行：
 
 ```text
-$bfk-init login
+$bfk-init
 ```
 
 应生成：
 
 ```text
-.bfk/runner/login.py
+.bfk/PROJECT.md
 ```
 
-并满足：
+并包含：
 
-1. 文件顶部包含 `PARAMS`
-2. 文件顶部包含 `DEFAULT_SINGLE_PARAM_NAME`
-3. 文件顶部包含 `BASE_URL`
-4. 文件顶部包含 `LOG_FILES`
-5. 文件中包含 `build_request(params)`
-6. 文件可以通过 Python 命令独立执行
+* 本地服务地址
+* 日志路径
+* 日志采集方式
+* 网络请求基础信息
+* 修复原则
 
 ---
 
-### 11.2 修复前回放验收
+### 13.2 new 验收
 
 执行：
 
 ```text
-$bfk-fix login 13900000000
+$bfk-new login_failed 13900000000
 ```
 
-在修复前阶段应生成：
+应生成：
 
 ```text
-request.json
-before_response.json
-before.log
+.bfk/issues/<issue_id>/
+├── issue.md
+├── runner.py
+└── iterations/
 ```
 
-并满足：
+其中：
 
-1. `request.json` 是完整本地请求
-2. `before_response.json` 包含 status_code、headers、body/body_text、elapsed_ms
-3. `before.log` 包含本次请求期间新增日志
+1. `issue.md` 记录原始输入和解析后的参数。
+2. `runner.py` 包含固定参数和请求构造逻辑。
+3. `runner.py` 可以独立执行。
 
 ---
 
-### 11.3 修复后验证验收
+### 13.3 run 验收
 
-修复后应生成：
+执行：
 
 ```text
-after_response.json
-after.log
-result.json
+$bfk-run latest
 ```
 
-并满足：
+应生成：
 
-1. 验证阶段复用同一个 `request.json`
-2. `after_response.json` 记录修复后的响应
-3. `after.log` 记录修复后的新增日志
-4. `result.json` 记录根因、修复内容、影响范围和验证结果
+```text
+iterations/001/
+├── request.json
+├── response.json
+└── output.log
+```
+
+再次执行：
+
+```text
+$bfk-run latest
+```
+
+应生成：
+
+```text
+iterations/002/
+├── request.json
+├── response.json
+└── output.log
+```
+
+要求：
+
+1. 不覆盖上一轮 iteration。
+2. 每轮都保存真实请求、响应和日志。
+3. 日志来自本轮请求期间的新增日志。
 
 ---
 
-## 12. MVP 最终形态
+### 13.4 diagnose 验收
 
-MVP 最终只保留：
+执行：
 
 ```text
-命令：
-$bfk-init <request_name>
-$bfk-fix <request_name> <params>
+$bfk-diagnose latest
+```
 
-目录：
+应在当前 iteration 下生成：
+
+```text
+diagnosis.md
+```
+
+诊断报告必须包含：
+
+* 当前执行摘要
+* 当前问题状态
+* 关键日志
+* 相关代码文件
+* 根因判断
+* 下一步建议
+
+如果是后续轮次，还需要包含：
+
+* 上一轮诊断摘要
+* 上一轮修复摘要
+* 本轮是否验证通过
+* 问题是否发生变化
+
+---
+
+### 13.5 fix 验收
+
+执行：
+
+```text
+$bfk-fix latest
+```
+
+应基于最新 `diagnosis.md` 修改代码，并在当前 iteration 下生成：
+
+```text
+fix.md
+```
+
+`fix.md` 必须包含：
+
+* 使用的诊断报告
+* 修复摘要
+* 修改文件
+* 修改细节
+* 风险说明
+* 下一步建议
+
+如果诊断不适合自动修复，`fix.md` 应说明拒绝修复原因，且不得修改代码。
+
+---
+
+## 14. 最终 MVP 形态
+
+Bug Fix Kit MVP 的最终命令为：
+
+```text
+$bfk-init
+$bfk-new <issue_name> <params>
+$bfk-run <issue_id|latest>
+$bfk-diagnose <issue_id|latest>
+$bfk-fix <issue_id|latest>
+```
+
+最终目录结构为：
+
+```text
 .bfk/
-├── runner/
-│   └── <request_name>.py
-└── runs/
-    └── <timestamp>_<request_name>/
-        ├── request.json
-        ├── before_response.json
-        ├── before.log
-        ├── after_response.json
-        ├── after.log
-        └── result.json
+├── PROJECT.md
+└── issues/
+    └── <issue_id>/
+        ├── issue.md
+        ├── runner.py
+        └── iterations/
+            └── <iteration_no>/
+                ├── request.json
+                ├── response.json
+                ├── output.log
+                ├── diagnosis.md
+                └── fix.md
 ```
 
-这就是 Bug Fix Kit 第一版的完整闭环。
+核心闭环为：
+
+```text
+初始化项目知识
+  ↓
+创建异常问题和请求脚本
+  ↓
+执行请求并收集日志
+  ↓
+诊断异常原因
+  ↓
+修复代码
+  ↓
+再次执行请求
+  ↓
+继续诊断和修复，直到问题解决
+```
