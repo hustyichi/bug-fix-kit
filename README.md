@@ -74,7 +74,7 @@ $bfk-fix [issue_id]
 
 `$bfk-init` 由 Codex 直接写入 `.bfk/PROJECT.md`，记录 base URL、日志文件、默认 headers、auth note、请求样例和请求契约。headers 会保留到生成的 issue runner 中；auth note 只作为文档记录，不会被执行。
 
-如果用户提供真实 curl/request 样例，`$bfk-init` 会在同一个 Markdown 文件中保存脱敏后的原始请求样例、请求契约、参数映射表和少量仓库证据。常见 curl 样例应沉淀出 method、path、headers、JSON body，以及 `input[0].content[0].text` 这类内层 JSON 字符串 payload。
+如果用户提供真实 curl/request 样例，`$bfk-init` 会在同一个 Markdown 文件中保存原始请求样例、请求契约、参数映射表和少量仓库证据。常见 curl 样例应沉淀出 method、path、headers、JSON body，以及 `input[0].content[0].text` 这类内层 JSON 字符串 payload。`.bfk/` 是本地工作区并已被 gitignore，用于保留后续复现请求所需的认证 header 等上下文。
 
 ### Issue 创建
 
@@ -101,7 +101,7 @@ $bfk-fix [issue_id]
 - JSON body 来自请求样例
 - 参数按 `Parameter Contract` 写入 `body.*` 或内层 `text.*`
 - 内层 payload 会重新 JSON encode 回用户文本字段
-- `${ENV_NAME}` 形式的 header 占位符会在运行时从环境变量展开
+- 用户在样例中显式写入的 `${ENV_NAME}` header 占位符会在运行时从环境变量展开
 
 直接运行 `python .bfk/issues/<issue_id>/runner.py` 只会打印 request JSON，不会发送 HTTP 请求。
 

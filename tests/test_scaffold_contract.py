@@ -58,3 +58,8 @@ def test_readme_has_initial_install_section():
     assert "## Install" in readme_en
     assert "bfk install" in readme
     assert "$bfk-init" in readme
+
+
+def test_bfk_workdir_is_gitignored():
+    gitignore = (ROOT / ".gitignore").read_text()
+    assert ".bfk/" in gitignore

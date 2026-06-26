@@ -91,7 +91,7 @@ def test_write_project_creates_project_knowledge(tmp_path: Path):
     assert "LOCAL_AUTH_TOKEN" in text
 
 
-def test_write_project_preserves_request_contract_without_secret(tmp_path: Path):
+def test_write_project_preserves_request_contract_with_local_auth(tmp_path: Path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "api.py").write_text(
         "@router.post('/v1/responses')\nclass CreateResponseRequest: ...\njson.loads(user_text)\n"
@@ -107,8 +107,8 @@ def test_write_project_preserves_request_contract_without_secret(tmp_path: Path)
 
     text = project.read_text()
     assert "## Request Sample: project-merge-file" in text
-    assert "sk-secret" not in text
-    assert "Bearer ${LITELLM_API_KEY}" in text
+    assert "sk-secret" in text
+    assert "Bearer ${LITELLM_API_KEY}" not in text
     assert "- Endpoint: POST /v1/responses" in text
     assert "| task_id | text.params.task_id | yes | sample | sample+code |" in text
     assert "endpoint: src/api.py:1 contains `/v1/responses`" in text
@@ -159,7 +159,7 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
 
     assert request["method"] == "POST"
     assert request["url"] == "http://localhost:8000/v1/responses"
-    assert request["headers"]["x-litellm-api-key"] == "Bearer ${LITELLM_API_KEY}"
+    assert request["headers"]["x-litellm-api-key"] == "Bearer sk-secret"
     assert body["model"] == "agentic-upgrader"
     assert body["stream"] is True
     assert inner["params"]["task_id"] == "new-task"

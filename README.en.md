@@ -74,7 +74,7 @@ The loop writes evidence under `.bfk/`:
 
 `$bfk-init` writes `.bfk/PROJECT.md` directly through Codex, recording base URL, log files, default headers, auth note, request sample, and request contract. Headers are preserved in generated issue runners; auth notes are documentation only.
 
-When the user provides a real curl/request sample, `$bfk-init` keeps a redacted raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples should be distilled into method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`.
+When the user provides a real curl/request sample, `$bfk-init` keeps the raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples should be distilled into method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`. `.bfk/` is a local gitignored work area, so auth headers and other replay context are preserved for later requests.
 
 ### Issue creation
 
@@ -101,7 +101,7 @@ With a request contract, generated runners default to:
 - JSON body from the sample request
 - parameters written to `body.*` or nested `text.*` locations from `Parameter Contract`
 - nested payloads JSON-encoded back into the user text field
-- `${ENV_NAME}` header placeholders expanded from environment variables at runtime
+- `${ENV_NAME}` header placeholders explicitly written in the sample are expanded from environment variables at runtime
 
 Running `python .bfk/issues/<issue_id>/runner.py` prints the request JSON and does not send HTTP.
 

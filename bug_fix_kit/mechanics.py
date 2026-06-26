@@ -123,7 +123,7 @@ def write_project(
             f"## Request Sample: {request_name or 'default'}",
             "",
             "```bash",
-            _redact_request_sample(request_sample),
+            request_sample.strip(),
             "```",
         ]
     if parsed_sample:
@@ -302,38 +302,6 @@ def _find_inner_json_string(value: Any, path: list[str | int] | None = None) -> 
     return [], None
 
 
-def _redacted_headers(headers: dict[str, str]) -> dict[str, str]:
-    return {key: _redact_header_value(key, value) for key, value in headers.items()}
-
-
-def _header_env_name(key: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", key).strip("_").upper()
-    return cleaned[2:] if cleaned.startswith("X_") else cleaned
-
-
-def _redact_header_value(key: str, value: str) -> str:
-    lowered = key.lower()
-    if not any(part in lowered for part in ("authorization", "api-key", "token", "secret")):
-        return value
-    env_name = _header_env_name(key)
-    if value.lower().startswith("bearer "):
-        return f"Bearer ${{{env_name}}}"
-    return f"${{{env_name}}}"
-
-
-def _redact_request_sample(raw: str) -> str:
-    try:
-        _, _, headers, _ = _parse_curl_sample(raw)
-    except BfkError:
-        return raw.strip()
-    redacted = raw.strip()
-    for key, value in headers.items():
-        replacement = _redact_header_value(key, value)
-        if replacement != value:
-            redacted = redacted.replace(value, replacement)
-    return redacted
-
-
 def parse_request_sample(raw: str) -> ParsedRequestSample:
     method, url, headers, raw_body = _parse_curl_sample(raw)
     parsed_url = urlparse(url)
@@ -352,7 +320,7 @@ def parse_request_sample(raw: str) -> ParsedRequestSample:
         method=method,
         url=url,
         path=path,
-        headers=_redacted_headers(headers),
+        headers=headers,
         body=body,
         inner_json_path=inner_path,
         inner_payload=inner_payload,
