@@ -51,6 +51,10 @@ def test_plugin_manifest_shell_contract():
 
 def test_readme_has_initial_install_section():
     readme = (ROOT / "README.md").read_text()
-    assert "## Install" in readme
+    readme_en = (ROOT / "README.en.md").read_text()
+    assert "语言：简体中文 | [English](README.en.md)" in readme
+    assert "Language: [简体中文](README.md) | English" in readme_en
+    assert "## 安装" in readme
+    assert "## Install" in readme_en
     assert "bfk install" in readme
     assert "$bfk-init" in readme
