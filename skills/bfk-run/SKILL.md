@@ -21,9 +21,13 @@ Use when the user invokes `$bfk-run [issue_id]`.
 2. Prefer the helper command:
 
    ```bash
-   bfk run [issue_id]
+   bfk run [issue_id] [--timeout seconds]
    ```
 
 3. Read the command output and inspect the new iteration path.
-4. If `response.json.transport_error` is present, report that the run captured an environment/transport failure; leave analysis to `$bfk-diagnose`.
-5. Recommend `$bfk-diagnose` next.
+4. Interpret `response.json` mechanically only:
+   - `transport_error: null` means an HTTP response was captured, including possible 4xx/5xx business failures.
+   - `transport_error.type: transport_error` means request construction/network/HTTP transport failed.
+   - `transport_error.type: runner_error` means runner import/config/build failed, but durable artifacts were still written.
+5. If `output.log` contains a missing/truncated log note, report that evidence explicitly and leave root-cause analysis to `$bfk-diagnose`.
+6. Recommend `$bfk-diagnose` next.

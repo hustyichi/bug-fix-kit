@@ -14,7 +14,7 @@ Use when the user invokes `$bfk-fix [issue_id]`.
 - May modify local code only when `Problem Status` is `failed`, root cause is clear, related files are clear, and the issue is a code defect.
 - Does not run `$bfk-run`.
 - Does not run verification automatically.
-- Refuses code edits for `passed`, `blocked`, `unknown`, unclear root cause, service-down, auth, local data, or dependency/mock environment problems.
+- Refuses code edits for `passed`, `blocked`, `unknown`, unclear root cause, service-down, auth, local data, runner errors, transport errors, or dependency/mock environment problems.
 
 ## Workflow
 

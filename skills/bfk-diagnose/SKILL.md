@@ -22,4 +22,4 @@ Use when the user invokes `$bfk-diagnose [issue_id]`.
 2. If `response.json` has `transport_error`, set `Problem Status: blocked`; this is not an automatic code-fix case.
 3. Otherwise inspect response, logs, and related local code to identify current status: `failed`, `passed`, `blocked`, or `unknown`.
 4. Write Markdown `diagnosis.md` with execution summary, Problem Status, root cause, evidence, related files, suggested fix, and next action.
-5. Recommend `$bfk-fix` only when status is `failed` and evidence supports a code defect.
+5. Recommend `$bfk-fix` only when status is `failed` and evidence supports a code defect. For runner/service/log/auth/environment blockers, tell the user what to restore and then rerun `$bfk-run`.

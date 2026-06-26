@@ -26,5 +26,6 @@ Use when the user invokes `$bfk-new <issue_name> <params>`.
    bfk new <issue_name> [key=value ...]
    ```
 
-3. Preserve `key=value` params exactly. Leave unknown required fields as editable placeholders in `runner.py` instead of over-infering.
-4. Report the issue directory and recommend `$bfk-run` next.
+3. Preserve `key=value` params exactly. Free-form positional params become a single `value` param when no explicit `value=` is supplied.
+4. Do not infer endpoint-specific fields such as passwords or user IDs. If the request needs custom shape, edit the generated `runner.py` before `$bfk-run`.
+5. Report the issue directory and recommend `$bfk-run` next.

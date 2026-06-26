@@ -18,12 +18,13 @@ Use when the user invokes `$bfk-init` or wants to initialize project-level bfk d
 
 ## Workflow
 
-1. Gather or infer local service URL, log files, request defaults, auth note, and fix principles.
+1. Gather or infer local service URL, log files, default request headers, auth note, and fix principles.
 2. Prefer the helper command:
 
    ```bash
-   bfk init-project --base-url <url> --log-file <path> [--header Key=Value] [--auth-note <note>]
+   bfk init-project --base-url <url> --log-file <path> [--header Key=Value ...] [--auth-note <note>]
    ```
 
-3. If the helper is unavailable, write `.bfk/PROJECT.md` manually using the PRD shape.
-4. Report the path and recommend `$bfk-new` next.
+3. Use repeated `--header` flags for headers that generated runners should send. `--auth-note` is documentation only.
+4. If the helper is unavailable, write `.bfk/PROJECT.md` manually using the current PRD shape: Local Service, Logs, Log Capture, Request Defaults, optional Auth, Fix Principles.
+5. Report the path and recommend `$bfk-new` next.
