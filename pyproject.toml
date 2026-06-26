@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bug-fix-kit"
+version = "0.1.0"
+description = "Local Codex plugin for repeatable bug reproduction, diagnosis, and fix sessions."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+bfk = "bug_fix_kit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bug_fix_kit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
