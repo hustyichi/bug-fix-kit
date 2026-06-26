@@ -19,3 +19,8 @@ include = ["bug_fix_kit*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
