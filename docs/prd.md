@@ -117,6 +117,7 @@ bfk init-project \
   --log-file logs/app.log \
   --header Content-Type=application/json \
   --header Authorization="Bearer dev-token" \
+  --request-sample-file sample.curl \
   --auth-note LOCAL_AUTH_TOKEN
 ```
 
@@ -127,9 +128,15 @@ bfk init-project \
 - Log Capture
 - Request Defaults
 - Auth（可选说明文本）
+- Request Sample（可选，脱敏后的原始 curl）
+- Request Contract（可选，请求 method/path、外层模型、内层 payload 位置）
+- Parameter Contract（可选，`bfk new` 参数到请求字段的映射）
+- Repository Evidence（可选，仓库交叉验证锚点）
 - Fix Principles
 
 `--header` 可重复；这些 headers 会写入 `PROJECT.md` 并传递到后续 `runner.py` 的 `DEFAULT_HEADERS`。
+
+`--request-sample-file` / `--request-sample` 用于保存用户提供的真实请求样例。helper 会尽力解析常见 curl：method、URL/path、headers、JSON body，以及 `input[0].content[0].text` 这类 JSON 字符串内层 payload。敏感 header 值写入 Markdown 前会替换为 `${ENV_NAME}` 占位符。
 
 边界：不创建 issue、不执行请求、不诊断、不修复。
 
@@ -150,15 +157,24 @@ bfk new login_failed account=13900000000 mode=e2e
 1. 必须先存在 `.bfk/PROJECT.md`；缺失时返回 `bfk: Missing .bfk/PROJECT.md. Run $bfk-init first.`。
 2. `key=value` 会原样写入 `PARAMS`。
 3. 非 `key=value` 的位置参数会合并为 `value`，前提是没有显式 `value=`。
-4. helper 不做 endpoint 语义推断，不自动生成 password/user_id 等业务字段；需要复杂请求时手工编辑 `runner.py`。
+4. 如果 `PROJECT.md` 中存在 Request Sample + Parameter Contract，生成的 `runner.py` 会复制样例请求并按映射替换参数；未传入的映射字段保留样例值。
+5. helper 不做契约外业务字段推断，不自动生成 password/user_id 等字段；需要复杂请求时手工编辑 `PROJECT.md` 或 `runner.py`。
 
-生成的 `runner.py` 默认：
+无请求契约时，生成的 `runner.py` 默认：
 
 - `POST {BASE_URL}/`
 - JSON body 为 `PARAMS`
 - headers 为 `DEFAULT_HEADERS + X-BugFix-Issue`
 - `LOG_FILES` 来自 `PROJECT.md`
 - `AFTER_REQUEST_WAIT_SECONDS = 2`
+
+有请求契约时，生成的 `runner.py` 默认：
+
+- method/path 来自样例请求或 `Endpoint`
+- JSON body 来自样例请求
+- 参数按 `Parameter Contract` 写入 `body.*` 或内层 `text.*`
+- 内层 payload 重新 JSON encode 回用户文本字段
+- `${ENV_NAME}` header 占位符在运行时从环境变量展开
 
 直接执行 `python runner.py` 只打印请求 JSON，不发送 HTTP。
 

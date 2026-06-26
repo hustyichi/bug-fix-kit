@@ -9,6 +9,41 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def responses_project_merge_curl() -> str:
+    inner = {
+        "action": "project-merge",
+        "params": {
+            "merge_type": "file",
+            "task_id": "sample-task",
+            "source": {
+                "code": "LGI-sample",
+                "biz_type": "page_logic",
+                "iteration_code": "ITE-source",
+                "project_code": "PRJ-sample",
+                "tenant_code": "TNT-sample",
+            },
+            "merge_code": "MER-sample",
+            "target": {
+                "code": "LGI-sample",
+                "biz_type": "page_logic",
+                "iteration_code": "ITE-target",
+                "project_code": "PRJ-sample",
+                "tenant_code": "TNT-sample",
+            },
+        },
+    }
+    body = {
+        "model": "agentic-upgrader",
+        "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": json.dumps(inner), "sub_type": None}]}],
+        "stream": False,
+    }
+    return (
+        "curl --request POST 'http://127.0.0.1:8000/v1/responses' "
+        "--header 'Content-Type: application/json' "
+        f"--data-raw '{json.dumps(body)}'"
+    )
+
+
 def run_bfk(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     merged = os.environ.copy()
     merged["PYTHONPATH"] = str(ROOT) + os.pathsep + merged.get("PYTHONPATH", "")
@@ -57,6 +92,40 @@ def test_init_project_and_new_create_bfk_artifacts(tmp_path: Path):
     assert len(issue_dirs) == 1
     assert (issue_dirs[0] / "runner.py").exists()
     assert "Created issue" in new.stdout
+
+
+def test_init_project_accepts_request_sample_file_for_contract_runner(tmp_path: Path):
+    sample = tmp_path / "sample.curl"
+    sample.write_text(responses_project_merge_curl())
+
+    init = run_bfk(
+        tmp_path,
+        "init-project",
+        "--base-url",
+        "http://localhost:8000",
+        "--log-file",
+        "logs/app.log",
+        "--request-sample-file",
+        str(sample),
+    )
+    assert init.returncode == 0, init.stderr
+    assert "Parameter Contract" in (tmp_path / ".bfk" / "PROJECT.md").read_text()
+
+    new = run_bfk(tmp_path, "new", "merge failed", "task_id=new-task")
+    assert new.returncode == 0, new.stderr
+    issue = next((tmp_path / ".bfk" / "issues").iterdir())
+    result = subprocess.run(
+        [sys.executable, str(issue / "runner.py")],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    request = json.loads(result.stdout)
+    inner = json.loads(request["json"]["input"][0]["content"][0]["text"])
+    assert request["url"] == "http://localhost:8000/v1/responses"
+    assert inner["params"]["task_id"] == "new-task"
+    assert inner["params"]["merge_code"] == "MER-sample"
 
 
 def test_run_command_creates_iteration_with_transport_error(tmp_path: Path):

@@ -31,6 +31,7 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 bfk --help
 bfk doctor
 bfk init-project --base-url http://localhost:8000 --log-file logs/app.log --header Content-Type=application/json
+bfk init-project --base-url http://localhost:8000 --request-sample-file sample.curl
 bfk new login_failed account=13900000000
 bfk run --timeout 3
 ```
@@ -38,7 +39,7 @@ bfk run --timeout 3
 Implemented CLI commands:
 
 - `bfk install` — copy/register the local plugin and bootstrap/update the personal marketplace.
-- `bfk init-project` — create/update `.bfk/PROJECT.md` with base URL, log files, default headers, and auth note.
+- `bfk init-project` — create/update `.bfk/PROJECT.md` with base URL, log files, default headers, auth note, and optional request contract from a sample request.
 - `bfk new` — create one issue directory and issue-specific `runner.py`.
 - `bfk run` — execute the selected issue runner and write one numbered iteration.
 - `bfk doctor` — report package/plugin shell status.
@@ -79,6 +80,8 @@ The loop writes evidence under `.bfk/`:
 
 `bfk init-project` writes `.bfk/PROJECT.md`. `--header Key=Value` may be repeated; those headers are preserved in generated issue runners. `--auth-note` is documentation only and is not executed by the helper.
 
+When `--request-sample-file sample.curl` or `--request-sample "<curl ...>"` is provided, the helper keeps a redacted raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples are parsed for method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`.
+
 ### Issue creation
 
 `bfk new` requires `.bfk/PROJECT.md`; if it is missing, it exits with a concise error telling the user to run `$bfk-init`.
@@ -87,15 +90,24 @@ Parameter handling is intentionally simple:
 
 - `key=value` becomes `PARAMS[key] = value` in `runner.py`.
 - free-form positional values are joined into a single `value` parameter when no explicit `value=` is provided.
-- bfk does not infer endpoint-specific fields such as passwords or user IDs; edit `runner.py` when a case needs custom request shape.
+- when `.bfk/PROJECT.md` has a request sample and `Parameter Contract`, the generated runner copies the full sample request and replaces mapped parameters; omitted mapped parameters keep their sample values.
+- bfk does not infer endpoint-specific fields such as passwords or user IDs outside the request contract; edit `PROJECT.md` or the generated `runner.py` when a case needs custom request shape.
 
-Generated runners default to:
+Without a request contract, generated runners default to:
 
 - `POST {BASE_URL}/`
 - JSON body from `PARAMS`
 - headers from `.bfk/PROJECT.md` plus `X-BugFix-Issue`
 - `LOG_FILES` from `.bfk/PROJECT.md`
 - `AFTER_REQUEST_WAIT_SECONDS = 2`
+
+With a request contract, generated runners default to:
+
+- method/path from the sample request or `Endpoint`
+- JSON body from the sample request
+- parameters written to `body.*` or nested `text.*` locations from `Parameter Contract`
+- nested payloads JSON-encoded back into the user text field
+- `${ENV_NAME}` header placeholders expanded from environment variables at runtime
 
 Running `python .bfk/issues/<issue_id>/runner.py` prints the request JSON and does not send HTTP.
 

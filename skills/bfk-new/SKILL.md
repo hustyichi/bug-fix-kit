@@ -27,5 +27,6 @@ Use when the user invokes `$bfk-new <issue_name> <params>`.
    ```
 
 3. Preserve `key=value` params exactly. Free-form positional params become a single `value` param when no explicit `value=` is supplied.
-4. Do not infer endpoint-specific fields such as passwords or user IDs. If the request needs custom shape, edit the generated `runner.py` before `$bfk-run`.
-5. Report the issue directory and recommend `$bfk-run` next.
+4. When `.bfk/PROJECT.md` contains a Request Sample and Parameter Contract, generated `runner.py` should reconstruct the full sample request and replace mapped params. Omitted mapped params may keep sample values for quick reproduction.
+5. Do not infer endpoint-specific fields such as passwords or user IDs outside the saved request contract. If the request needs custom shape, edit `.bfk/PROJECT.md` or the generated `runner.py` before `$bfk-run`.
+6. Report the issue directory and recommend `$bfk-run` next.

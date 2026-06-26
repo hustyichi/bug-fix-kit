@@ -31,6 +31,7 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 bfk --help
 bfk doctor
 bfk init-project --base-url http://localhost:8000 --log-file logs/app.log --header Content-Type=application/json
+bfk init-project --base-url http://localhost:8000 --request-sample-file sample.curl
 bfk new login_failed account=13900000000
 bfk run --timeout 3
 ```
@@ -38,7 +39,7 @@ bfk run --timeout 3
 已实现的 CLI 命令：
 
 - `bfk install`：复制/注册本地插件，并初始化或更新个人 marketplace。
-- `bfk init-project`：创建或更新 `.bfk/PROJECT.md`，写入 base URL、日志文件、默认 headers 和 auth note。
+- `bfk init-project`：创建或更新 `.bfk/PROJECT.md`，写入 base URL、日志文件、默认 headers、auth note，并可从请求样例沉淀请求契约。
 - `bfk new`：创建一个 issue 目录和对应的 `runner.py`。
 - `bfk run`：执行选中的 issue runner，并写入一个编号递增的 iteration。
 - `bfk doctor`：报告 package/plugin shell 状态。
@@ -79,6 +80,8 @@ $bfk-fix [issue_id]
 
 `bfk init-project` 写入 `.bfk/PROJECT.md`。`--header Key=Value` 可以重复传入；这些 headers 会保留到生成的 issue runner 中。`--auth-note` 只作为文档记录，不会被 helper 执行。
 
+如果传入 `--request-sample-file sample.curl` 或 `--request-sample "<curl ...>"`，helper 会在同一个 Markdown 文件中保存脱敏后的原始请求样例、请求契约、参数映射表和少量仓库证据。常见 curl 样例会被解析出 method、path、headers、JSON body，以及 `input[0].content[0].text` 这类内层 JSON 字符串 payload。
+
 ### Issue 创建
 
 `bfk new` 要求 `.bfk/PROJECT.md` 已存在；缺失时会给出简洁错误，提示先运行 `$bfk-init`。
@@ -87,15 +90,24 @@ $bfk-fix [issue_id]
 
 - `key=value` 会写成 `runner.py` 中的 `PARAMS[key] = value`。
 - 当没有显式 `value=` 时，自由位置参数会合并成一个 `value` 参数。
-- bfk 不推断 password、user ID 等 endpoint 业务字段；需要自定义请求形状时，编辑 `runner.py`。
+- 当 `.bfk/PROJECT.md` 存在请求样例和 `Parameter Contract` 时，生成的 runner 会从样例请求复制完整请求，并按映射表替换传入参数；未传入的映射字段保留样例值。
+- bfk 不推断 password、user ID 等未出现在请求契约中的业务字段；需要自定义请求形状时，编辑 `PROJECT.md` 或生成的 `runner.py`。
 
-生成的 runner 默认：
+没有请求契约时，生成的 runner 默认：
 
 - `POST {BASE_URL}/`
 - JSON body 来自 `PARAMS`
 - headers 来自 `.bfk/PROJECT.md`，并追加 `X-BugFix-Issue`
 - `LOG_FILES` 来自 `.bfk/PROJECT.md`
 - `AFTER_REQUEST_WAIT_SECONDS = 2`
+
+有请求契约时，生成的 runner 默认：
+
+- method/path 来自请求样例或 `Endpoint`
+- JSON body 来自请求样例
+- 参数按 `Parameter Contract` 写入 `body.*` 或内层 `text.*`
+- 内层 payload 会重新 JSON encode 回用户文本字段
+- `${ENV_NAME}` 形式的 header 占位符会在运行时从环境变量展开
 
 直接运行 `python .bfk/issues/<issue_id>/runner.py` 只会打印 request JSON，不会发送 HTTP 请求。
 

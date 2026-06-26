@@ -20,6 +20,61 @@ from bug_fix_kit.mechanics import (
 )
 
 
+def responses_project_merge_curl() -> str:
+    inner = {
+        "action": "project-merge",
+        "eval": "1232",
+        "params": {
+            "merge_type": "file",
+            "task_id": "sample-task",
+            "source": {
+                "code": "LGI-sample",
+                "biz_type": "page_logic",
+                "iteration_code": "ITE-source",
+                "project_code": "PRJ-sample",
+                "tenant_code": "TNT-sample",
+            },
+            "merge_code": "MER-sample",
+            "merge_preference": None,
+            "target": {
+                "code": "LGI-sample",
+                "biz_type": "page_logic",
+                "iteration_code": "ITE-target",
+                "project_code": "PRJ-sample",
+                "tenant_code": "TNT-sample",
+            },
+        },
+    }
+    body = {
+        "model": "agentic-upgrader",
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(inner, ensure_ascii=False),
+                        "sub_type": None,
+                    }
+                ],
+            }
+        ],
+        "stream": False,
+        "previous_response_id": None,
+        "store": None,
+        "temperature": None,
+        "max_tokens": None,
+        "background": None,
+    }
+    return (
+        "curl --location --request POST 'http://127.0.0.1:8000/v1/responses' "
+        "--header 'x-litellm-api-key: Bearer sk-secret' "
+        "--header 'Content-Type: application/json' "
+        f"--data-raw '{json.dumps(body, ensure_ascii=False)}'"
+    )
+
+
 def test_write_project_creates_project_knowledge(tmp_path: Path):
     project = write_project(
         tmp_path,
@@ -34,6 +89,29 @@ def test_write_project_creates_project_knowledge(tmp_path: Path):
     assert "http://localhost:8000" in text
     assert "logs/app.log" in text
     assert "LOCAL_AUTH_TOKEN" in text
+
+
+def test_write_project_preserves_request_contract_without_secret(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text(
+        "@router.post('/v1/responses')\nclass CreateResponseRequest: ...\njson.loads(user_text)\n"
+    )
+
+    project = write_project(
+        tmp_path,
+        base_url="http://127.0.0.1:8000",
+        log_files=["logs/app.log"],
+        request_sample=responses_project_merge_curl(),
+        request_name="project-merge-file",
+    )
+
+    text = project.read_text()
+    assert "## Request Sample: project-merge-file" in text
+    assert "sk-secret" not in text
+    assert "Bearer ${LITELLM_API_KEY}" in text
+    assert "- Endpoint: POST /v1/responses" in text
+    assert "| task_id | text.params.task_id | yes | sample | sample+code |" in text
+    assert "endpoint: src/api.py:1 contains `/v1/responses`" in text
 
 
 def test_create_issue_scaffolds_runner_and_latest_issue(tmp_path: Path):
@@ -53,6 +131,43 @@ def test_create_issue_scaffolds_runner_and_latest_issue(tmp_path: Path):
     assert request["url"].startswith("http://localhost:8000")
     assert request["headers"]["Content-Type"] == "application/json"
     assert request["json"]["account"] == "13900000000"
+
+
+def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_path: Path):
+    write_project(
+        tmp_path,
+        base_url="http://localhost:8000",
+        log_files=["logs/app.log"],
+        request_sample=responses_project_merge_curl(),
+    )
+
+    issue = create_issue(
+        tmp_path,
+        "merge failed",
+        [
+            "task_id=new-task",
+            "merge_code=MER-new",
+            "source_iteration_code=ITE-source-new",
+            "code=LGI-new",
+            "stream=true",
+        ],
+    )
+
+    request = load_runner_request(issue / "runner.py")
+    body = request["json"]
+    inner = json.loads(body["input"][0]["content"][0]["text"])
+
+    assert request["method"] == "POST"
+    assert request["url"] == "http://localhost:8000/v1/responses"
+    assert request["headers"]["x-litellm-api-key"] == "Bearer ${LITELLM_API_KEY}"
+    assert body["model"] == "agentic-upgrader"
+    assert body["stream"] is True
+    assert inner["params"]["task_id"] == "new-task"
+    assert inner["params"]["merge_code"] == "MER-new"
+    assert inner["params"]["source"]["iteration_code"] == "ITE-source-new"
+    assert inner["params"]["target"]["iteration_code"] == "ITE-target"
+    assert inner["params"]["source"]["code"] == "LGI-new"
+    assert inner["params"]["target"]["code"] == "LGI-new"
 
 
 def test_next_iteration_dir_never_overwrites(tmp_path: Path):

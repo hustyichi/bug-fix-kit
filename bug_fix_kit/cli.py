@@ -75,6 +75,20 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--log-file", action="append", default=[])
     init.add_argument("--header", action="append", default=[])
     init.add_argument("--auth-note", default="")
+    init.add_argument("--endpoint", default="", help="Request endpoint contract, for example 'POST /v1/responses'.")
+    init.add_argument("--request-sample", default="", help="Raw curl request sample to preserve in .bfk/PROJECT.md.")
+    init.add_argument(
+        "--request-sample-file",
+        "--sample-file",
+        dest="request_sample_file",
+        type=Path,
+        default=None,
+        help="File containing a raw curl request sample.",
+    )
+    init.add_argument("--request-name", default="default", help="Label for the preserved request sample.")
+    init.add_argument("--timeout", type=float, default=120, help="Default request timeout documented for generated runners.")
+    init.add_argument("--after-request-wait", type=float, default=2, help="Seconds to wait before reading logs.")
+    init.add_argument("--evidence", action="append", default=[], help="Repository evidence line to preserve in PROJECT.md.")
 
     new = sub.add_parser("new", help="Create a bfk issue and runner.")
     new.add_argument("issue_name")
@@ -104,12 +118,21 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
 
 def _cmd_init_project(args: argparse.Namespace) -> int:
+    request_sample = args.request_sample
+    if args.request_sample_file:
+        request_sample = args.request_sample_file.read_text()
     path = write_project(
         args.root,
         base_url=args.base_url,
         log_files=args.log_file or ["logs/app.log"],
         default_headers=_headers(args.header) if args.header else None,
         auth_note=args.auth_note,
+        request_sample=request_sample,
+        request_name=args.request_name,
+        endpoint=args.endpoint,
+        timeout_seconds=args.timeout,
+        after_request_wait_seconds=args.after_request_wait,
+        repository_evidence=args.evidence,
     )
     print(f"Wrote {path}")
     return 0
