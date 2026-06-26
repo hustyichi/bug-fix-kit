@@ -1,47 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def responses_project_merge_curl() -> str:
-    inner = {
-        "action": "project-merge",
-        "params": {
-            "merge_type": "file",
-            "task_id": "sample-task",
-            "source": {
-                "code": "LGI-sample",
-                "biz_type": "page_logic",
-                "iteration_code": "ITE-source",
-                "project_code": "PRJ-sample",
-                "tenant_code": "TNT-sample",
-            },
-            "merge_code": "MER-sample",
-            "target": {
-                "code": "LGI-sample",
-                "biz_type": "page_logic",
-                "iteration_code": "ITE-target",
-                "project_code": "PRJ-sample",
-                "tenant_code": "TNT-sample",
-            },
-        },
-    }
-    body = {
-        "model": "agentic-upgrader",
-        "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": json.dumps(inner), "sub_type": None}]}],
-        "stream": False,
-    }
-    return (
-        "curl --request POST 'http://127.0.0.1:8000/v1/responses' "
-        "--header 'Content-Type: application/json' "
-        f"--data-raw '{json.dumps(body)}'"
-    )
 
 
 def run_bfk(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -58,93 +22,31 @@ def run_bfk(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subproc
     )
 
 
-def test_cli_exposes_expected_commands_and_not_diagnose_fix(tmp_path: Path):
+def test_cli_exposes_only_plugin_management_commands(tmp_path: Path):
     help_result = run_bfk(tmp_path, "--help")
+
     assert help_result.returncode == 0
-    for command in ["install", "init-project", "new", "run", "doctor"]:
-        assert command in help_result.stdout
-    assert "diagnose" not in help_result.stdout
-    assert " fix" not in help_result.stdout
-
-    bad = run_bfk(tmp_path, "diagnose")
-    assert bad.returncode != 0
+    assert "install" in help_result.stdout
+    assert "doctor" in help_result.stdout
+    for command in ["init-project", "new", "run", "diagnose", "fix", "status", "verify", "auto"]:
+        assert command not in help_result.stdout
 
 
-def test_init_project_and_new_create_bfk_artifacts(tmp_path: Path):
-    init = run_bfk(
-        tmp_path,
-        "init-project",
-        "--base-url",
-        "http://localhost:8000",
-        "--log-file",
-        "logs/app.log",
-        "--header",
-        "Content-Type=application/json",
-        "--auth-note",
-        "LOCAL_AUTH_TOKEN",
-    )
-    assert init.returncode == 0, init.stderr
-    assert (tmp_path / ".bfk" / "PROJECT.md").exists()
-
-    new = run_bfk(tmp_path, "new", "login failed", "account=13900000000")
-    assert new.returncode == 0, new.stderr
-    issue_dirs = list((tmp_path / ".bfk" / "issues").iterdir())
-    assert len(issue_dirs) == 1
-    assert (issue_dirs[0] / "runner.py").exists()
-    assert "Created issue" in new.stdout
-
-
-def test_init_project_accepts_request_sample_file_for_contract_runner(tmp_path: Path):
-    sample = tmp_path / "sample.curl"
-    sample.write_text(responses_project_merge_curl())
-
-    init = run_bfk(
-        tmp_path,
-        "init-project",
-        "--base-url",
-        "http://localhost:8000",
-        "--log-file",
-        "logs/app.log",
-        "--request-sample-file",
-        str(sample),
-    )
-    assert init.returncode == 0, init.stderr
-    assert "Parameter Contract" in (tmp_path / ".bfk" / "PROJECT.md").read_text()
-
-    new = run_bfk(tmp_path, "new", "merge failed", "task_id=new-task")
-    assert new.returncode == 0, new.stderr
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    result = subprocess.run(
-        [sys.executable, str(issue / "runner.py")],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    request = json.loads(result.stdout)
-    inner = json.loads(request["json"]["input"][0]["content"][0]["text"])
-    assert request["url"] == "http://localhost:8000/v1/responses"
-    assert inner["params"]["task_id"] == "new-task"
-    assert inner["params"]["merge_code"] == "MER-sample"
-
-
-def test_run_command_creates_iteration_with_transport_error(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "login", "account=13900000000")
-
-    result = run_bfk(tmp_path, "run", "--timeout", "0.1")
-
-    assert result.returncode == 0, result.stderr
-    iteration = next((tmp_path / ".bfk" / "issues").iterdir()) / "iterations" / "001"
-    assert (iteration / "request.json").exists()
-    response = json.loads((iteration / "response.json").read_text())
-    assert response["status_code"] is None
-    assert response["transport_error"]
-    assert (iteration / "output.log").exists()
+def test_removed_core_workflow_commands_are_not_available(tmp_path: Path):
+    for args in [
+        ("init-project", "--base-url", "http://localhost:8000"),
+        ("new", "login_failed", "account=13900000000"),
+        ("run", "--timeout", "3"),
+    ]:
+        result = run_bfk(tmp_path, *args)
+        assert result.returncode != 0
+        assert "invalid choice" in result.stderr
+        assert "Traceback" not in result.stderr
 
 
 def test_doctor_reports_plugin_shell(tmp_path: Path):
     result = run_bfk(tmp_path, "doctor")
+
     assert result.returncode == 0
     assert "plugin manifest" in result.stdout
 
@@ -165,126 +67,3 @@ def test_install_accepts_public_plugin_root_and_marketplace_flags(tmp_path: Path
     assert result.returncode == 0, result.stderr
     assert marketplace.exists()
     assert (tmp_path / "home" / "plugins" / "bug-fix-kit" / ".codex-plugin" / "plugin.json").exists()
-
-
-def test_cli_non_goals_are_not_commands(tmp_path: Path):
-    for command in ["status", "verify", "auto", "fix"]:
-        result = run_bfk(tmp_path, command)
-        assert result.returncode != 0
-
-
-def test_module_entrypoint_preserves_handled_error_exit_code(tmp_path: Path):
-    result = run_bfk(tmp_path, "run")
-    assert result.returncode == 1
-    assert "No bfk issues" in result.stderr
-
-
-def test_new_requires_project_initialization(tmp_path: Path):
-    result = run_bfk(tmp_path, "new", "login", "account=1")
-    assert result.returncode == 1
-    assert "$bfk-init" in result.stderr
-    assert not (tmp_path / ".bfk" / "issues").exists()
-
-
-def test_run_invalid_issue_id_returns_concise_error(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    result = run_bfk(tmp_path, "run", "missing_issue")
-    assert result.returncode == 1
-    assert "issue not found" in result.stderr
-    assert "Traceback" not in result.stderr
-
-
-def test_run_runner_exception_writes_transport_error_iteration(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "broken", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    (issue / "runner.py").write_text(
-        "PARAMS = {}\nLOG_FILES = ['missing.log']\nAFTER_REQUEST_WAIT_SECONDS = 0\ndef build_request(params):\n    raise RuntimeError('boom')\n"
-    )
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    iteration = issue / "iterations" / "001"
-    response = json.loads((iteration / "response.json").read_text())
-    assert response["status_code"] is None
-    assert response["transport_error"]["type"] == "runner_error"
-    assert "boom" in response["transport_error"]["message"]
-    assert json.loads((iteration / "request.json").read_text())["runner_error"] == "boom"
-
-
-def test_run_bad_url_writes_transport_error_without_traceback(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "not-a-url", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "bad-url", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    assert "Traceback" not in result.stderr
-    response = json.loads((issue / "iterations" / "001" / "response.json").read_text())
-    assert response["status_code"] is None
-    assert response["transport_error"]["type"] == "transport_error"
-
-
-def test_run_runner_import_error_writes_iteration(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "import-boom", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    (issue / "runner.py").write_text("raise RuntimeError('import boom')\n")
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    response = json.loads((issue / "iterations" / "001" / "response.json").read_text())
-    assert response["transport_error"]["type"] == "runner_error"
-    assert "import boom" in response["transport_error"]["message"]
-
-
-def test_run_runner_config_error_writes_iteration(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "bad-config", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    (issue / "runner.py").write_text(
-        "PARAMS = {}\nLOG_FILES = ['missing.log']\nAFTER_REQUEST_WAIT_SECONDS = 'abc'\ndef build_request(params):\n    return {'method': 'GET', 'url': 'http://127.0.0.1:1'}\n"
-    )
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    assert "Traceback" not in result.stderr
-    response = json.loads((issue / "iterations" / "001" / "response.json").read_text())
-    assert response["transport_error"]["type"] == "runner_error"
-    assert "AFTER_REQUEST_WAIT_SECONDS" in response["transport_error"]["message"]
-
-
-def test_run_malformed_headers_writes_transport_error_iteration(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "bad-headers", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    (issue / "runner.py").write_text(
-        "PARAMS = {}\nLOG_FILES = ['missing.log']\nAFTER_REQUEST_WAIT_SECONDS = 0\ndef build_request(params):\n    return {'method': 'GET', 'url': 'http://127.0.0.1:1', 'headers': [('Bad',)]}\n"
-    )
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    response = json.loads((issue / "iterations" / "001" / "response.json").read_text())
-    assert response["transport_error"]["type"] == "transport_error"
-
-
-def test_run_non_json_serializable_request_is_artifacted(tmp_path: Path):
-    run_bfk(tmp_path, "init-project", "--base-url", "http://127.0.0.1:1", "--log-file", "missing.log")
-    run_bfk(tmp_path, "new", "bad-json", "account=1")
-    issue = next((tmp_path / ".bfk" / "issues").iterdir())
-    (issue / "runner.py").write_text(
-        "PARAMS = {}\nLOG_FILES = ['missing.log']\nAFTER_REQUEST_WAIT_SECONDS = 0\ndef build_request(params):\n    return {'method': 'POST', 'url': 'http://127.0.0.1:1', 'json': {'bad': {1, 2}}}\n"
-    )
-
-    result = run_bfk(tmp_path, "run")
-
-    assert result.returncode == 0, result.stderr
-    request = json.loads((issue / "iterations" / "001" / "request.json").read_text())
-    response = json.loads((issue / "iterations" / "001" / "response.json").read_text())
-    assert request["json"]["bad"] == "{1, 2}"
-    assert response["transport_error"]["type"] == "transport_error"

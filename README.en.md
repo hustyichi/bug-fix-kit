@@ -30,21 +30,15 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 ```bash
 bfk --help
 bfk doctor
-bfk init-project --base-url http://localhost:8000 --log-file logs/app.log --header Content-Type=application/json
-bfk init-project --base-url http://localhost:8000 --request-sample-file sample.curl
-bfk new login_failed account=13900000000
-bfk run --timeout 3
+bfk install --yes
 ```
 
 Implemented CLI commands:
 
 - `bfk install` — copy/register the local plugin and bootstrap/update the personal marketplace.
-- `bfk init-project` — create/update `.bfk/PROJECT.md` with base URL, log files, default headers, auth note, and optional request contract from a sample request.
-- `bfk new` — create one issue directory and issue-specific `runner.py`.
-- `bfk run` — execute the selected issue runner and write one numbered iteration.
 - `bfk doctor` — report package/plugin shell status.
 
-The helper CLI intentionally does **not** provide deterministic `bfk diagnose`, `bfk fix`, `bfk status`, `bfk verify`, or `bfk auto` commands. Diagnosis and code fixing require Codex judgment and are exposed as skills.
+The helper CLI is only for plugin installation and shell checks. Project initialization, issue creation, request execution, diagnosis, and fixes are Codex skill workflows, so the CLI does not provide `bfk init-project`, `bfk new`, `bfk run`, `bfk diagnose`, `bfk fix`, `bfk status`, `bfk verify`, or `bfk auto`.
 
 ## Codex workflow
 
@@ -78,13 +72,13 @@ The loop writes evidence under `.bfk/`:
 
 ### Project initialization
 
-`bfk init-project` writes `.bfk/PROJECT.md`. `--header Key=Value` may be repeated; those headers are preserved in generated issue runners. `--auth-note` is documentation only and is not executed by the helper.
+`$bfk-init` writes `.bfk/PROJECT.md` directly through Codex, recording base URL, log files, default headers, auth note, request sample, and request contract. Headers are preserved in generated issue runners; auth notes are documentation only.
 
-When `--request-sample-file sample.curl` or `--request-sample "<curl ...>"` is provided, the helper keeps a redacted raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples are parsed for method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`.
+When the user provides a real curl/request sample, `$bfk-init` keeps a redacted raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples should be distilled into method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`.
 
 ### Issue creation
 
-`bfk new` requires `.bfk/PROJECT.md`; if it is missing, it exits with a concise error telling the user to run `$bfk-init`.
+`$bfk-new` requires `.bfk/PROJECT.md`; if it is missing, it tells the user to run `$bfk-init`.
 
 Parameter handling is intentionally simple:
 
@@ -113,14 +107,14 @@ Running `python .bfk/issues/<issue_id>/runner.py` prints the request JSON and do
 
 ### Run artifacts
 
-`bfk run [issue_id]` resolves the selected issue, loads `runner.py`, records file offsets, executes the HTTP request, waits if configured, reads new log content, then writes the next iteration directory.
+`$bfk-run [issue_id]` resolves the selected issue, loads `runner.py`, records file offsets, executes the HTTP request, waits if configured, reads new log content, then writes the next iteration directory. This is executed directly by the Codex skill, not through the `bfk` CLI.
 
 `response.json` behavior:
 
 - HTTP responses, including 4xx/5xx, are recorded with `transport_error: null`.
 - connection failures, bad URLs, malformed request data, and non-serializable payloads are recorded as `transport_error.type = "transport_error"`.
 - runner import/config/build failures are recorded as `transport_error.type = "runner_error"`.
-- invalid explicit issue IDs fail fast with `bfk: issue not found: <id>` and no traceback.
+- invalid explicit issue IDs should fail fast with `issue not found: <id>` and no traceback.
 
 `output.log` contains only log content appended after the captured offset. If a log file shrinks between offset capture and read, the output includes a `log file truncated` note before reading from the start.
 
@@ -129,9 +123,9 @@ Running `python .bfk/issues/<issue_id>/runner.py` prints the request JSON and do
 A real mock-service check has been run against the current product:
 
 1. start local `127.0.0.1` mock HTTP server;
-2. run `bfk init-project` with `Content-Type` and `Authorization` headers;
-3. run `bfk new "login failed" account=13900000000 mode=e2e`;
-4. run `bfk run --timeout 3`;
+2. use `$bfk-init` with `Content-Type` and `Authorization` headers;
+3. use `$bfk-new "login failed" account=13900000000 mode=e2e`;
+4. use `$bfk-run`;
 5. verify `request.json`, `response.json`, and `output.log`.
 
 Observed result: mock service received `POST /`, `response.json.status_code` was `200`, `transport_error` was `null`, request headers and JSON body matched the runner, and mock logs were captured in `output.log`.

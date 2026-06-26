@@ -23,7 +23,7 @@ def test_run_diagnose_fix_boundaries_are_explicit():
     run = skill_text("bfk-run").lower()
     assert "does not diagnose" in run
     assert "does not modify" in run or "does not edit" in run
-    assert "bfk run" in run
+    assert "do not invoke `bfk run`" in run
 
     diagnose = skill_text("bfk-diagnose").lower()
     assert "does not modify" in diagnose or "does not edit" in diagnose
@@ -41,11 +41,11 @@ def test_run_diagnose_fix_boundaries_are_explicit():
 def test_init_and_new_boundaries_point_to_helpers():
     init = skill_text("bfk-init").lower()
     assert ".bfk/project.md" in init
-    assert "bfk init-project" in init
+    assert "do not invoke `bfk init-project`" in init
     assert "does not create issue" in init
     assert "does not run" in init
 
     new = skill_text("bfk-new").lower()
-    assert "bfk new" in new
+    assert "do not invoke `bfk new`" in new
     assert "runner.py" in new
     assert "does not run" in new

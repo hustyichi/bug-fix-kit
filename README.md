@@ -30,21 +30,15 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 ```bash
 bfk --help
 bfk doctor
-bfk init-project --base-url http://localhost:8000 --log-file logs/app.log --header Content-Type=application/json
-bfk init-project --base-url http://localhost:8000 --request-sample-file sample.curl
-bfk new login_failed account=13900000000
-bfk run --timeout 3
+bfk install --yes
 ```
 
 已实现的 CLI 命令：
 
 - `bfk install`：复制/注册本地插件，并初始化或更新个人 marketplace。
-- `bfk init-project`：创建或更新 `.bfk/PROJECT.md`，写入 base URL、日志文件、默认 headers、auth note，并可从请求样例沉淀请求契约。
-- `bfk new`：创建一个 issue 目录和对应的 `runner.py`。
-- `bfk run`：执行选中的 issue runner，并写入一个编号递增的 iteration。
 - `bfk doctor`：报告 package/plugin shell 状态。
 
-helper CLI 故意不提供确定性的 `bfk diagnose`、`bfk fix`、`bfk status`、`bfk verify` 或 `bfk auto` 命令。诊断和代码修复需要 Codex 判断力，因此暴露为 skills。
+helper CLI 只负责插件安装和外壳检查。项目初始化、issue 创建、请求执行、诊断和修复都由 Codex skills 完成，不提供 `bfk init-project`、`bfk new`、`bfk run`、`bfk diagnose`、`bfk fix`、`bfk status`、`bfk verify` 或 `bfk auto` 命令。
 
 ## Codex 工作流
 
@@ -78,13 +72,13 @@ $bfk-fix [issue_id]
 
 ### 项目初始化
 
-`bfk init-project` 写入 `.bfk/PROJECT.md`。`--header Key=Value` 可以重复传入；这些 headers 会保留到生成的 issue runner 中。`--auth-note` 只作为文档记录，不会被 helper 执行。
+`$bfk-init` 由 Codex 直接写入 `.bfk/PROJECT.md`，记录 base URL、日志文件、默认 headers、auth note、请求样例和请求契约。headers 会保留到生成的 issue runner 中；auth note 只作为文档记录，不会被执行。
 
-如果传入 `--request-sample-file sample.curl` 或 `--request-sample "<curl ...>"`，helper 会在同一个 Markdown 文件中保存脱敏后的原始请求样例、请求契约、参数映射表和少量仓库证据。常见 curl 样例会被解析出 method、path、headers、JSON body，以及 `input[0].content[0].text` 这类内层 JSON 字符串 payload。
+如果用户提供真实 curl/request 样例，`$bfk-init` 会在同一个 Markdown 文件中保存脱敏后的原始请求样例、请求契约、参数映射表和少量仓库证据。常见 curl 样例应沉淀出 method、path、headers、JSON body，以及 `input[0].content[0].text` 这类内层 JSON 字符串 payload。
 
 ### Issue 创建
 
-`bfk new` 要求 `.bfk/PROJECT.md` 已存在；缺失时会给出简洁错误，提示先运行 `$bfk-init`。
+`$bfk-new` 要求 `.bfk/PROJECT.md` 已存在；缺失时提示先运行 `$bfk-init`。
 
 参数处理保持简单：
 
@@ -113,14 +107,14 @@ $bfk-fix [issue_id]
 
 ### Run artifacts
 
-`bfk run [issue_id]` 会解析目标 issue，加载 `runner.py`，记录日志文件 offset，执行 HTTP 请求，按配置等待，读取新增日志，然后写入下一个 iteration 目录。
+`$bfk-run [issue_id]` 会解析目标 issue，加载 `runner.py`，记录日志文件 offset，执行 HTTP 请求，按配置等待，读取新增日志，然后写入下一个 iteration 目录。这个流程由 Codex skill 直接执行，不通过 `bfk` CLI。
 
 `response.json` 行为：
 
 - 包括 4xx/5xx 在内的 HTTP 响应会记录为 `transport_error: null`。
 - 连接失败、错误 URL、畸形请求数据、不可序列化 payload 会记录为 `transport_error.type = "transport_error"`。
 - runner import/config/build 失败会记录为 `transport_error.type = "runner_error"`。
-- 显式传入不存在的 issue ID 会快速失败：`bfk: issue not found: <id>`，没有 traceback。
+- 显式传入不存在的 issue ID 应快速失败并说明 `issue not found: <id>`，没有 traceback。
 
 `output.log` 只包含捕获 offset 之后追加的日志内容。如果日志文件在捕获 offset 后变短，输出会先包含 `log file truncated` 说明，然后从文件开头读取。
 
@@ -129,9 +123,9 @@ $bfk-fix [issue_id]
 当前产品已跑过真实 mock-service 检查：
 
 1. 启动本地 `127.0.0.1` mock HTTP server；
-2. 运行 `bfk init-project`，写入 `Content-Type` 和 `Authorization` headers；
-3. 运行 `bfk new "login failed" account=13900000000 mode=e2e`；
-4. 运行 `bfk run --timeout 3`；
+2. 使用 `$bfk-init` 写入 `Content-Type` 和 `Authorization` headers；
+3. 使用 `$bfk-new "login failed" account=13900000000 mode=e2e` 创建 issue；
+4. 使用 `$bfk-run` 执行 runner；
 5. 验证 `request.json`、`response.json` 和 `output.log`。
 
 观察结果：mock service 收到 `POST /`，`response.json.status_code` 为 `200`，`transport_error` 为 `null`，请求 headers 和 JSON body 与 runner 匹配，mock 日志被捕获到 `output.log`。

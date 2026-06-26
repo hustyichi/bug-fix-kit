@@ -20,12 +20,7 @@ Use when the user invokes `$bfk-new <issue_name> <params>`.
 ## Workflow
 
 1. Confirm `.bfk/PROJECT.md` exists; if missing, tell the user to run `$bfk-init`.
-2. Prefer the helper command:
-
-   ```bash
-   bfk new <issue_name> [key=value ...]
-   ```
-
+2. Create `.bfk/issues/<issue_id>/issue.md`, `runner.py`, and `iterations/` directly. Do not invoke `bfk new`; the CLI is for plugin management, not the core Codex workflow.
 3. Preserve `key=value` params exactly. Free-form positional params become a single `value` param when no explicit `value=` is supplied.
 4. When `.bfk/PROJECT.md` contains a Request Sample and Parameter Contract, generated `runner.py` should reconstruct the full sample request and replace mapped params. Omitted mapped params may keep sample values for quick reproduction.
 5. Do not infer endpoint-specific fields such as passwords or user IDs outside the saved request contract. If the request needs custom shape, edit `.bfk/PROJECT.md` or the generated `runner.py` before `$bfk-run`.
