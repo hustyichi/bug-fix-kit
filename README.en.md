@@ -31,10 +31,10 @@ bfk install --yes
 Advanced local install paths are explicit:
 
 ```bash
-bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --yes
+bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 ```
 
-`--source-root` is accepted as a compatibility alias for `--plugin-root`. Existing installed plugin directories are not overwritten unless `--yes` is passed.
+`--plugin-root` / `--source-root` may still point at a custom plugin source; when it points at this repository root, `bfk` installs the packaged `bug_fix_kit/plugin` bundle. Existing installed plugin directories are not overwritten unless `--yes` is passed.
 
 The PyPI distribution is `bug-fix-kit`, the installed console script is `bfk`, and the Python import package is `bug_fix_kit`.
 
@@ -148,4 +148,4 @@ Observed result: mock service received `POST /`, `response.json.status_code` was
 - `$bfk-run` executes and captures only; it does not diagnose or edit code.
 - `$bfk-diagnose` writes `diagnosis.md` only; it does not edit code or run requests.
 - `$bfk-fix` writes `fix.md` and may edit code only for clear code defects; it does not run verification.
-- No PyPI release automation, demo HTTP app, Web UI, OpenTelemetry, remote logs, YAML config, or auto-fix loop in MVP.
+- No demo HTTP app, Web UI, OpenTelemetry, remote logs, YAML config, or auto-fix loop in MVP.

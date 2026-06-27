@@ -66,4 +66,7 @@ def test_install_accepts_public_plugin_root_and_marketplace_flags(tmp_path: Path
 
     assert result.returncode == 0, result.stderr
     assert marketplace.exists()
-    assert (tmp_path / "home" / "plugins" / "bug-fix-kit" / ".codex-plugin" / "plugin.json").exists()
+    target = tmp_path / "home" / "plugins" / "bug-fix-kit"
+    assert (target / ".codex-plugin" / "plugin.json").exists()
+    assert not (target / "pyproject.toml").exists()
+    assert not (target / "bug_fix_kit").exists()

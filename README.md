@@ -31,10 +31,10 @@ bfk install --yes
 高级本地安装路径显式传入：
 
 ```bash
-bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --yes
+bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 ```
 
-`--source-root` 仍作为 `--plugin-root` 的兼容别名。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
+`--plugin-root` / `--source-root` 仍可指定自定义插件源；指向本仓库根目录时会自动使用随包发布的 `bug_fix_kit/plugin` 插件包。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
 
 PyPI distribution 名称是 `bug-fix-kit`，安装后的 console script 是 `bfk`，Python import package 是 `bug_fix_kit`。
 

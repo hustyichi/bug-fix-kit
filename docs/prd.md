@@ -45,7 +45,7 @@ bfk install --yes
 高级安装路径：
 
 ```bash
-bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --yes
+bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 ```
 
 实际行为：
@@ -328,7 +328,7 @@ python3 -m bug_fix_kit --help
 bfk --help
 bfk doctor
 bfk install --home <tmp> --yes
-bfk install --plugin-root . --marketplace <tmp>/.agents/plugins/marketplace.json --yes
+bfk install --marketplace <tmp>/.agents/plugins/marketplace.json --yes
 python3 /Users/bryan/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py .
 ```
 

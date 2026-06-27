@@ -10,7 +10,7 @@ The installed console script is `bfk`; the import package is `bug_fix_kit`.
 - Import package: `bug_fix_kit`
 - Plugin name: `bug-fix-kit`
 
-Before upload, re-check official PyPI name/version availability. If the name or version is unavailable, stop; do not rename or bump silently.
+Before upload, re-check official PyPI version availability. For a first release, optionally add `--require-unclaimed-name` to fail if the project name already exists. If the target version is unavailable, stop; do not rename or bump silently.
 
 ## Supported surface
 
@@ -35,14 +35,15 @@ The release covers the existing local-first plugin shell:
 ## Local release gate
 
 ```bash
+python -m pip install -e '.[release]'
 python scripts/check-release.py
 ```
 
 The script verifies:
 
 1. `python -m pytest -q`
-2. `python -m compileall -q bug_fix_kit tests`
-3. sdist and wheel build
+2. `python -m compileall -q bug_fix_kit scripts tests`
+3. sdist and wheel build with installed release dependencies
 4. `twine check`
 5. wheel install into a fresh virtual environment
 6. installed `bfk --help`

@@ -82,7 +82,7 @@ def main() -> int:
     clean_generated_artifacts()
     try:
         run([sys.executable, "-m", "pytest", "-q"])
-        run([sys.executable, "-m", "compileall", "-q", "bug_fix_kit", "tests"])
+        run([sys.executable, "-m", "compileall", "-q", "bug_fix_kit", "scripts", "tests"])
         with tempfile.TemporaryDirectory(prefix="bug-fix-kit-release-") as tmp:
             temp_dir = Path(tmp)
             artifacts = build_distributions(temp_dir)

@@ -8,10 +8,7 @@ from . import __version__
 from .installer import InstallError, install_plugin
 
 
-def _repo_root() -> Path:
-    root = Path(__file__).resolve().parents[1]
-    if (root / ".codex-plugin" / "plugin.json").exists():
-        return root
+def _plugin_root() -> Path:
     return Path(__file__).resolve().parent / "plugin"
 
 
@@ -24,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     install = sub.add_parser("install", help="Install/register the local Codex plugin.")
-    install.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=_repo_root())
+    install.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=_plugin_root())
     install.add_argument("--home", type=Path, default=None)
     install.add_argument("--marketplace", type=Path, default=None)
     install.add_argument("--yes", action="store_true", help="Replace existing installed plugin.")
@@ -47,7 +44,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
 
 
 def _cmd_doctor(_args: argparse.Namespace) -> int:
-    root = _repo_root()
+    root = _plugin_root()
     manifest = root / ".codex-plugin" / "plugin.json"
     print(f"package root: {root}")
     print(f"plugin manifest: {'ok' if manifest.exists() else 'missing'} ({manifest})")

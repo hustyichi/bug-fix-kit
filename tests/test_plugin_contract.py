@@ -57,6 +57,27 @@ def test_release_scripts_and_packaged_plugin_assets_exist():
         assert (ROOT / "bug_fix_kit" / "plugin" / "skills" / skill / "SKILL.md").exists()
 
 
+def test_packaged_plugin_bundle_matches_repo_plugin_shell():
+    assert (ROOT / "bug_fix_kit" / "plugin" / ".codex-plugin" / "plugin.json").read_text() == (
+        ROOT / ".codex-plugin" / "plugin.json"
+    ).read_text()
+    for skill in SKILLS:
+        assert (ROOT / "bug_fix_kit" / "plugin" / "skills" / skill / "SKILL.md").read_text() == (
+            ROOT / "skills" / skill / "SKILL.md"
+        ).read_text()
+
+
+def test_release_scripts_have_safety_gates():
+    check_release = (ROOT / "scripts" / "check-release.py").read_text()
+    publish_release = (ROOT / "scripts" / "publish-release.py").read_text()
+    assert "--no-isolation" in check_release
+    assert "--no-isolation" in publish_release
+    assert '"bug_fix_kit", "scripts", "tests"' in check_release
+    assert "--require-unclaimed-name" in publish_release
+    assert "args.publish and args.allow_dirty" in publish_release
+    assert "--allow-dirty is dry-run only" in publish_release
+
+
 def test_no_demo_app_or_unsupported_plugin_surfaces():
     forbidden = ["demo", "examples/demo"]
     for path in forbidden:

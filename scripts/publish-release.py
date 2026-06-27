@@ -54,19 +54,16 @@ def assert_clean_git(*, allow_dirty: bool) -> None:
         )
 
 
-def assert_project_not_registered(name: str) -> None:
+def assert_project_unclaimed(name: str) -> None:
     url = f"{PYPI_JSON_BASE}/{name}/json"
     try:
         with urllib.request.urlopen(url, timeout=15) as response:
             if response.status == 200:
-                raise ReleaseError(
-                    f"{name!r} already exists on PyPI; first release needs an unclaimed name "
-                    "or credentials for the existing project"
-                )
+                raise ReleaseError(f"{name!r} already exists on PyPI")
             raise ReleaseError(f"unexpected PyPI response for {url}: HTTP {response.status}")
     except urllib.error.HTTPError as error:
         if error.code == 404:
-            print(f"PyPI project availability: OK ({name} is not registered)")
+            print(f"PyPI project availability: OK ({name} is unclaimed)")
             return
         raise ReleaseError(f"unexpected PyPI response for {url}: HTTP {error.code}") from error
     except urllib.error.URLError as error:
@@ -100,7 +97,7 @@ def clean_dist() -> None:
 
 def build_artifacts() -> list[Path]:
     clean_dist()
-    run([sys.executable, "-m", "build", "--sdist", "--wheel", "--outdir", str(DIST_DIR)])
+    run([sys.executable, "-m", "build", "--no-isolation", "--sdist", "--wheel", "--outdir", str(DIST_DIR)])
     artifacts = sorted(path for path in DIST_DIR.iterdir() if path.is_file())
     wheels = [path for path in artifacts if path.suffix == ".whl"]
     sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
@@ -138,6 +135,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--publish", action="store_true", help="upload built artifacts to official PyPI")
     parser.add_argument("--allow-dirty", action="store_true", help="allow a dirty working tree")
     parser.add_argument("--skip-release-check", action="store_true", help="skip scripts/check-release.py after a just-passed gate")
+    parser.add_argument(
+        "--require-unclaimed-name",
+        action="store_true",
+        help="fail if the PyPI project name already exists; useful only for first-release name reservation checks",
+    )
     return parser.parse_args()
 
 
@@ -145,8 +147,11 @@ def main() -> int:
     args = parse_args()
     name, version = read_project_identity()
     print(f"Release target: {name}=={version}")
+    if args.publish and args.allow_dirty:
+        raise ReleaseError("--allow-dirty is dry-run only and cannot be combined with --publish")
     assert_clean_git(allow_dirty=args.allow_dirty)
-    assert_project_not_registered(name)
+    if args.require_unclaimed_name:
+        assert_project_unclaimed(name)
     assert_version_not_published(name, version)
     if not args.skip_release_check:
         run([sys.executable, "scripts/check-release.py"])
@@ -158,7 +163,8 @@ def main() -> int:
             print(f"- {artifact.relative_to(REPO_ROOT)}")
         print("To publish, rerun: python scripts/publish-release.py --publish")
         return 0
-    assert_project_not_registered(name)
+    if args.require_unclaimed_name:
+        assert_project_unclaimed(name)
     assert_version_not_published(name, version)
     run([sys.executable, "-m", "twine", "upload", *map(str, artifacts)])
     wait_for_pypi_version(name, version)

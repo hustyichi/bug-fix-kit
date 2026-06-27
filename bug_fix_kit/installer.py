@@ -21,6 +21,13 @@ class InstallResult:
     next_steps: str
 
 
+def _canonical_source_root(source_root: Path) -> Path:
+    packaged = source_root / "bug_fix_kit" / "plugin"
+    if (packaged / ".codex-plugin" / "plugin.json").exists():
+        return packaged
+    return source_root
+
+
 def _validate_source(source_root: Path) -> None:
     manifest_path = source_root / ".codex-plugin" / "plugin.json"
     if not manifest_path.exists():
@@ -91,7 +98,7 @@ def install_plugin(
     marketplace_path: Path | None = None,
     yes: bool = False,
 ) -> InstallResult:
-    source_root = source_root.resolve()
+    source_root = _canonical_source_root(source_root.resolve())
     marketplace_path = marketplace_path.expanduser() if marketplace_path is not None else None
     home = (
         _home_from_marketplace_path(marketplace_path)
