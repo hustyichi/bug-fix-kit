@@ -34,7 +34,7 @@ Advanced local install paths are explicit:
 bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 ```
 
-`--plugin-root` / `--source-root` may still point at a custom plugin source; when it points at this repository root, `bfk` installs the packaged `bug_fix_kit/plugin` bundle. Existing installed plugin directories are not overwritten unless `--yes` is passed.
+`--plugin-root` / `--source-root` may still point at a custom plugin source; when it points at this repository root, `bfk` copies only the maintained `.codex-plugin/` and `skills/` trees. From an installed wheel, `bfk` uses the build-generated `bug_fix_kit/plugin_payload/bug-fix-kit` package resource. Existing installed plugin directories are not overwritten unless `--yes` is passed.
 
 The PyPI distribution is `bug-fix-kit`, the installed console script is `bfk`, and the Python import package is `bug_fix_kit`.
 

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run_bfk(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     merged = os.environ.copy()
-    merged["PYTHONPATH"] = str(ROOT) + os.pathsep + merged.get("PYTHONPATH", "")
+    merged["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + merged.get("PYTHONPATH", "")
     if env:
         merged.update(env)
     return subprocess.run(
@@ -70,3 +70,5 @@ def test_install_accepts_public_plugin_root_and_marketplace_flags(tmp_path: Path
     assert (target / ".codex-plugin" / "plugin.json").exists()
     assert not (target / "pyproject.toml").exists()
     assert not (target / "bug_fix_kit").exists()
+    for skill in ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]:
+        assert (target / "skills" / skill / "SKILL.md").exists()

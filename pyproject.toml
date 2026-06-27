@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
 
 [project]
 name = "bug-fix-kit"
@@ -31,18 +31,55 @@ Issues = "https://github.com/hustyichi/bug-fix-kit/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=9.1.1"]
-release = ["build>=1.2", "setuptools>=68", "twine>=5", "wheel>=0.42"]
+release = ["build>=1.2", "hatchling>=1.26", "twine>=5", "wheel>=0.42"]
 
 [project.scripts]
 bfk = "bug_fix_kit.cli:main"
 
-[tool.setuptools.packages.find]
-include = ["bug_fix_kit*"]
+[tool.hatch.build]
+include = [
+    "src/bug_fix_kit/**",
+    ".codex-plugin/**",
+    "skills/**",
+    "docs/**",
+    "tests/**",
+    "scripts/**",
+    "README.md",
+    "README.en.md",
+    "pyproject.toml",
+]
+exclude = [
+    ".omx/**",
+    ".bfk/**",
+    ".venv/**",
+    "build/**",
+    "dist/**",
+    "*.egg-info/**",
+    "__pycache__/**",
+]
 
-[tool.setuptools.package-data]
-bug_fix_kit = ["plugin/.codex-plugin/*", "plugin/skills/*/SKILL.md"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/bug_fix_kit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+".codex-plugin" = "bug_fix_kit/plugin_payload/bug-fix-kit/.codex-plugin"
+"skills" = "bug_fix_kit/plugin_payload/bug-fix-kit/skills"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src/bug_fix_kit/**",
+    "/.codex-plugin/**",
+    "/skills/**",
+    "/docs/**",
+    "/tests/**",
+    "/scripts/**",
+    "/README.md",
+    "/README.en.md",
+    "/pyproject.toml",
+]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
 

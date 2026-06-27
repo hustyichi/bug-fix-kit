@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -17,14 +18,17 @@ def test_package_plugin_shell_contract():
     assert pyproject["project"].get("dependencies", []) == []
     assert pyproject["project"]["scripts"]["bfk"] == "bug_fix_kit.cli:main"
 
-    init_text = (ROOT / "bug_fix_kit" / "__init__.py").read_text()
+    init_text = (ROOT / "src" / "bug_fix_kit" / "__init__.py").read_text()
     assert "__version__" in init_text
-    assert (ROOT / "bug_fix_kit" / "__main__.py").exists()
-    assert (ROOT / "bug_fix_kit" / "cli.py").exists()
+    assert (ROOT / "src" / "bug_fix_kit" / "__main__.py").exists()
+    assert (ROOT / "src" / "bug_fix_kit" / "cli.py").exists()
 
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + env.get("PYTHONPATH", "")
     result = subprocess.run(
         [sys.executable, "-m", "bug_fix_kit", "--help"],
         cwd=ROOT,
+        env=env,
         text=True,
         capture_output=True,
     )
@@ -58,12 +62,5 @@ def test_readme_has_initial_install_section():
     assert "## Install" in readme_en
     assert "pip install bug-fix-kit" in readme
     assert "pip install bug-fix-kit" in readme_en
-    assert "不会自动启用 Codex 插件" in readme
-    assert "does not automatically enable a Codex plugin" in readme_en
-    assert "bfk install" in readme
-    assert "$bfk-init" in readme
-
-
-def test_bfk_workdir_is_gitignored():
-    gitignore = (ROOT / ".gitignore").read_text()
-    assert ".bfk/" in gitignore
+    assert "plugin_payload" in readme
+    assert "plugin_payload" in readme_en

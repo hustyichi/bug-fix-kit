@@ -20,7 +20,7 @@ MVP 现在包含 PyPI 发布准备与最小发布脚本；仍不内置 demo HTTP
 ```text
 .codex-plugin/plugin.json
 skills/bfk-*/SKILL.md
-bug_fix_kit/*.py
+src/bug_fix_kit/*.py
 pyproject.toml
 ```
 
@@ -50,9 +50,9 @@ bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 
 实际行为：
 
-1. 校验 `.codex-plugin/plugin.json` 和五个 skills。
-2. 复制插件到 `<home>/plugins/bug-fix-kit`。
-3. 排除 `.git`、`.omx`、`.bfk`、`.venv`、缓存、build/dist、`*.egg-info`。
+1. 校验根目录 `.codex-plugin/plugin.json` 和五个 skills；从 wheel 运行时校验构建生成的 `bug_fix_kit/plugin_payload/bug-fix-kit` 包资源。
+2. 只复制插件 payload 到 `<home>/plugins/bug-fix-kit`，payload 包含 `.codex-plugin/` 和 `skills/`。
+3. 本地开发源保持根目录 `.codex-plugin/` 与 `skills/` 为唯一维护来源；包内 `plugin_payload` 只由 Hatch `force-include` 生成。
 4. 创建或更新 `<home>/.agents/plugins/marketplace.json`。
 5. 目标目录已存在时必须显式传 `--yes` 才覆盖。
 
@@ -322,7 +322,7 @@ failed | passed | blocked | unknown
 必过检查：
 
 ```bash
-python3 -m compileall -q bug_fix_kit tests
+python3 -m compileall -q src/bug_fix_kit tests
 pytest -q
 python3 -m bug_fix_kit --help
 bfk --help

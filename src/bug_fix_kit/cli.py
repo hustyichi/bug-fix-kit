@@ -5,11 +5,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .installer import InstallError, install_plugin
-
-
-def _plugin_root() -> Path:
-    return Path(__file__).resolve().parent / "plugin"
+from .installer import InstallError, install_plugin, resolve_payload_source
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -21,12 +17,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     install = sub.add_parser("install", help="Install/register the local Codex plugin.")
-    install.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=_plugin_root())
+    install.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=None)
     install.add_argument("--home", type=Path, default=None)
     install.add_argument("--marketplace", type=Path, default=None)
     install.add_argument("--yes", action="store_true", help="Replace existing installed plugin.")
 
-    sub.add_parser("doctor", help="Check local package/plugin shell.")
+    doctor = sub.add_parser("doctor", help="Check local package/plugin shell.")
+    doctor.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=None)
     return parser
 
 
@@ -43,12 +40,12 @@ def _cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_doctor(_args: argparse.Namespace) -> int:
-    root = _plugin_root()
-    manifest = root / ".codex-plugin" / "plugin.json"
-    print(f"package root: {root}")
-    print(f"plugin manifest: {'ok' if manifest.exists() else 'missing'} ({manifest})")
-    print(f"skills dir: {'ok' if (root / 'skills').exists() else 'missing'}")
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    payload = resolve_payload_source(args.source_root)
+    print(f"payload source: {payload.kind}")
+    print(f"payload root: {payload.display_root}")
+    print(f"plugin manifest: ok ({payload.display_root}/.codex-plugin/plugin.json)")
+    print(f"skills dir: ok ({payload.display_root}/skills)")
     return 0
 
 

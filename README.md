@@ -34,7 +34,7 @@ bfk install --yes
 bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
 ```
 
-`--plugin-root` / `--source-root` 仍可指定自定义插件源；指向本仓库根目录时会自动使用随包发布的 `bug_fix_kit/plugin` 插件包。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
+`--plugin-root` / `--source-root` 仍可指定自定义插件源；指向本仓库根目录时只复制根目录维护的 `.codex-plugin/` 与 `skills/`。从已安装 wheel 运行时，`bfk` 使用构建生成的 `bug_fix_kit/plugin_payload/bug-fix-kit` 包资源。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
 
 PyPI distribution 名称是 `bug-fix-kit`，安装后的 console script 是 `bfk`，Python import package 是 `bug_fix_kit`。
 

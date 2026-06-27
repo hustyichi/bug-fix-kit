@@ -97,7 +97,7 @@ def clean_dist() -> None:
 
 def build_artifacts() -> list[Path]:
     clean_dist()
-    run([sys.executable, "-m", "build", "--no-isolation", "--sdist", "--wheel", "--outdir", str(DIST_DIR)])
+    run([sys.executable, "-m", "build", "--sdist", "--wheel", "--outdir", str(DIST_DIR)])
     artifacts = sorted(path for path in DIST_DIR.iterdir() if path.is_file())
     wheels = [path for path in artifacts if path.suffix == ".whl"]
     sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]

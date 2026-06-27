@@ -19,8 +19,8 @@ The release covers the existing local-first plugin shell:
 - `bfk --help`
 - `bfk doctor`
 - `bfk install --yes`
-- packaged `.codex-plugin/plugin.json`
-- packaged `skills/bfk-*` skill surfaces
+- packaged `.codex-plugin/plugin.json` via generated `bug_fix_kit/plugin_payload/bug-fix-kit`
+- packaged `skills/bfk-*` skill surfaces via generated `bug_fix_kit/plugin_payload/bug-fix-kit`
 
 `pip install bug-fix-kit` must not automatically enable a Codex plugin. The supported path remains `pip install bug-fix-kit`, then `bfk install --yes`, then manual Codex plugin enable instructions.
 
@@ -42,13 +42,15 @@ python scripts/check-release.py
 The script verifies:
 
 1. `python -m pytest -q`
-2. `python -m compileall -q bug_fix_kit scripts tests`
-3. sdist and wheel build with installed release dependencies
-4. `twine check`
-5. wheel install into a fresh virtual environment
-6. installed `bfk --help`
-7. installed `bfk doctor`
-8. installed `bfk install --yes` against a temp home, including plugin files and marketplace entry
+2. `python -m compileall -q src/bug_fix_kit scripts tests`
+3. `src/bug_fix_kit`, sdist and wheel build with isolated Hatch/PEP 517 build
+4. archive inspection for generated `bug_fix_kit/plugin_payload/bug-fix-kit` and all five skills
+5. `twine check`
+6. wheel install into a fresh virtual environment
+7. sdist install into a fresh virtual environment
+8. installed `bfk --help`
+9. installed `bfk doctor`
+10. installed `bfk install --yes` against a temp home, including plugin files and marketplace entry
 
 Do not publish if this gate fails.
 

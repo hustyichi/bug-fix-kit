@@ -29,7 +29,7 @@ def make_plugin_source(root: Path) -> Path:
     return root
 
 
-def test_install_plugin_copies_source_and_bootstraps_personal_marketplace(tmp_path: Path):
+def test_install_plugin_copies_only_payload_and_bootstraps_personal_marketplace(tmp_path: Path):
     source = make_plugin_source(tmp_path / "source")
     home = tmp_path / "home"
 
@@ -41,7 +41,8 @@ def test_install_plugin_copies_source_and_bootstraps_personal_marketplace(tmp_pa
     assert result.marketplace_path == marketplace
     assert (target / ".codex-plugin" / "plugin.json").exists()
     assert (target / "skills" / "bfk-run" / "SKILL.md").exists()
-    assert (target / "keep.txt").read_text() == "keep"
+    assert not (target / "keep.txt").exists()
+    assert not (target / "bug_fix_kit").exists()
     assert not (target / ".git").exists()
     assert not (target / ".omx").exists()
     assert not (target / ".bfk").exists()
