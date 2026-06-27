@@ -9,7 +9,10 @@ from .installer import InstallError, install_plugin
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[1]
+    if (root / ".codex-plugin" / "plugin.json").exists():
+        return root
+    return Path(__file__).resolve().parent / "plugin"
 
 
 def build_parser() -> argparse.ArgumentParser:

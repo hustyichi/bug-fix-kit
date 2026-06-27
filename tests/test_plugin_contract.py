@@ -9,11 +9,23 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]
 
 
-def test_pyproject_has_no_runtime_dependencies_and_no_release_scripts():
+def test_pyproject_has_release_ready_metadata_without_runtime_dependencies():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    assert pyproject["project"].get("dependencies", []) == []
-    assert pyproject["project"]["scripts"] == {"bfk": "bug_fix_kit.cli:main"}
-    assert "release" not in pyproject.get("project", {}).get("optional-dependencies", {})
+    project = pyproject["project"]
+    assert project["name"] == "bug-fix-kit"
+    assert project.get("dependencies", []) == []
+    assert project["scripts"] == {"bfk": "bug_fix_kit.cli:main"}
+    assert project["optional-dependencies"]["release"] == [
+        "build>=1.2",
+        "setuptools>=68",
+        "twine>=5",
+        "wheel>=0.42",
+    ]
+    assert project["urls"]["Repository"] == "https://github.com/hustyichi/bug-fix-kit"
+
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["bug_fix_kit"]
+    assert "plugin/.codex-plugin/*" in package_data
+    assert "plugin/skills/*/SKILL.md" in package_data
 
 
 def test_plugin_manifest_contract_and_skill_dirs():
@@ -37,7 +49,15 @@ def test_plugin_manifest_contract_and_skill_dirs():
         assert (ROOT / "skills" / skill / "SKILL.md").exists()
 
 
-def test_no_demo_app_or_release_automation_files():
-    forbidden = ["demo", "examples/demo", "scripts/publish-release.py", "scripts/check-release.py"]
+def test_release_scripts_and_packaged_plugin_assets_exist():
+    assert (ROOT / "scripts" / "check-release.py").exists()
+    assert (ROOT / "scripts" / "publish-release.py").exists()
+    assert (ROOT / "bug_fix_kit" / "plugin" / ".codex-plugin" / "plugin.json").exists()
+    for skill in SKILLS:
+        assert (ROOT / "bug_fix_kit" / "plugin" / "skills" / skill / "SKILL.md").exists()
+
+
+def test_no_demo_app_or_unsupported_plugin_surfaces():
+    forbidden = ["demo", "examples/demo"]
     for path in forbidden:
         assert not (ROOT / path).exists()

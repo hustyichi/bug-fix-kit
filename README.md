@@ -2,11 +2,24 @@
 
 语言：简体中文 | [English](README.en.md)
 
-Bug Fix Kit（`bfk`）是一个本地 Codex 插件，用于可重复的 bug 复现、诊断和修复会话。
+Bug Fix Kit（`bfk`）是一个可通过 PyPI 分发的本地 Codex 插件，用于可重复的 bug 复现、诊断和修复会话。
 
 它把确定性的机械动作放在一个小型 stdlib Python helper CLI 中，把根因诊断和修复判断交给 Codex skills。
 
 ## 安装
+
+发布版安装：
+
+```bash
+python3 -m pip install bug-fix-kit
+bfk --help
+bfk doctor
+bfk install --yes
+```
+
+`pip install bug-fix-kit` 只安装 `bfk` CLI；不会自动启用 Codex 插件。
+
+`bfk install` 会把插件复制到 `~/plugins/bug-fix-kit`，更新个人 marketplace 文件 `~/.agents/plugins/marketplace.json`，并打印下一步要执行的 `codex plugin add bug-fix-kit@personal` 命令。随后在 Codex `/plugins` 中启用 `Bug Fix Kit`；如果 skills 没有立即出现，开启一个新的 Codex 线程。
 
 本地开发安装：
 
@@ -15,8 +28,6 @@ python3 -m pip install -e .
 bfk install --yes
 ```
 
-`bfk install` 会把插件复制到 `~/plugins/bug-fix-kit`，更新个人 marketplace 文件 `~/.agents/plugins/marketplace.json`，并打印下一步要执行的 `codex plugin add bug-fix-kit@personal` 命令。随后在 Codex `/plugins` 中启用 `Bug Fix Kit`；如果 skills 没有立即出现，开启一个新的 Codex 线程。
-
 高级本地安装路径显式传入：
 
 ```bash
@@ -24,6 +35,8 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 ```
 
 `--source-root` 仍作为 `--plugin-root` 的兼容别名。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
+
+PyPI distribution 名称是 `bug-fix-kit`，安装后的 console script 是 `bfk`，Python import package 是 `bug_fix_kit`。
 
 ## 本地 helper CLI
 
@@ -135,4 +148,4 @@ $bfk-fix [issue_id]
 - `$bfk-run` 只执行和采集，不诊断、不编辑代码。
 - `$bfk-diagnose` 只写 `diagnosis.md`，不编辑代码、不运行请求。
 - `$bfk-fix` 写 `fix.md`，只有明确代码缺陷时才可编辑代码；它不运行验证。
-- MVP 不包含 PyPI release 自动化、demo HTTP app、Web UI、OpenTelemetry、远程日志、YAML config 或 auto-fix loop。
+- MVP 不包含 demo HTTP app、Web UI、OpenTelemetry、远程日志、YAML config 或 auto-fix loop。

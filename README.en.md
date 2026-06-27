@@ -2,11 +2,24 @@
 
 Language: [简体中文](README.md) | English
 
-Bug Fix Kit (`bfk`) is a local Codex plugin for repeatable bug reproduction, diagnosis, and fix sessions.
+Bug Fix Kit (`bfk`) is a PyPI-distributed local Codex plugin for repeatable bug reproduction, diagnosis, and fix sessions.
 
 It keeps deterministic mechanics in a small stdlib Python helper CLI and leaves root-cause diagnosis/fix judgment to Codex skills.
 
 ## Install
+
+Published package install:
+
+```bash
+python3 -m pip install bug-fix-kit
+bfk --help
+bfk doctor
+bfk install --yes
+```
+
+`pip install bug-fix-kit` installs the `bfk` CLI only; it does not automatically enable a Codex plugin.
+
+`bfk install` copies the plugin to `~/plugins/bug-fix-kit`, updates the personal marketplace file at `~/.agents/plugins/marketplace.json`, and prints the next `codex plugin add bug-fix-kit@personal` command. Then enable `Bug Fix Kit` from Codex `/plugins` and start a new Codex thread if skills are not immediately visible.
 
 For local development:
 
@@ -15,8 +28,6 @@ python3 -m pip install -e .
 bfk install --yes
 ```
 
-`bfk install` copies the plugin to `~/plugins/bug-fix-kit`, updates the personal marketplace file at `~/.agents/plugins/marketplace.json`, and prints the next `codex plugin add bug-fix-kit@personal` command. Then enable `Bug Fix Kit` from Codex `/plugins` and start a new Codex thread if skills are not immediately visible.
-
 Advanced local install paths are explicit:
 
 ```bash
@@ -24,6 +35,8 @@ bfk install --plugin-root . --marketplace ~/.agents/plugins/marketplace.json --y
 ```
 
 `--source-root` is accepted as a compatibility alias for `--plugin-root`. Existing installed plugin directories are not overwritten unless `--yes` is passed.
+
+The PyPI distribution is `bug-fix-kit`, the installed console script is `bfk`, and the Python import package is `bug_fix_kit`.
 
 ## Local helper CLI
 

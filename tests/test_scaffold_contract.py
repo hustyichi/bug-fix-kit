@@ -56,6 +56,10 @@ def test_readme_has_initial_install_section():
     assert "Language: [简体中文](README.md) | English" in readme_en
     assert "## 安装" in readme
     assert "## Install" in readme_en
+    assert "pip install bug-fix-kit" in readme
+    assert "pip install bug-fix-kit" in readme_en
+    assert "不会自动启用 Codex 插件" in readme
+    assert "does not automatically enable a Codex plugin" in readme_en
     assert "bfk install" in readme
     assert "$bfk-init" in readme
 
