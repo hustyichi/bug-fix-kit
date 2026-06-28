@@ -145,12 +145,12 @@ def write_project(
         if parsed_sample and parsed_sample.inner_json_path:
             notes.append("Inner payload must be JSON-encoded into the configured user text field.")
         if mappings:
-            notes.append("bfk-new may reuse sample values when a mapped parameter is omitted.")
+            notes.append("bfk-capture may reuse sample values when a mapped parameter is omitted.")
         lines += ["", "## Validation Notes", *[f"- {item}" for item in notes]]
     lines += [
         "",
         "## Fix Principles",
-        "- Diagnose before fixing.",
+        "- Locate before fixing.",
         "- Prefer minimal code changes.",
         "- Do not refactor unrelated code.",
     ]
@@ -564,11 +564,11 @@ def _infer_repository_evidence(
 def _read_project_config(root: Path) -> ProjectConfig:
     project = bfk_root(root) / "PROJECT.md"
     if not project.exists():
-        raise BfkError("Missing .bfk/PROJECT.md. Run $bfk-init first.")
+        raise BfkError("Missing .bfk/PROJECT.md. Run $bfk-capture with project/request context first.")
     text = project.read_text()
     base_match = re.search(r"Base URL:\s*(\S+)", text)
     if not base_match:
-        raise BfkError(".bfk/PROJECT.md is missing Base URL. Run $bfk-init again.")
+        raise BfkError(".bfk/PROJECT.md is missing Base URL. Run $bfk-capture with service context again.")
 
     logs = re.findall(r"^-\s+(.+\.log)\s*$", _section_body(text, "Logs"), flags=re.MULTILINE)
     header_lines = re.findall(r"^-\s+([^:]+):\s*(.*)\s*$", _section_body(text, "Request Defaults"), flags=re.MULTILINE)
@@ -639,7 +639,7 @@ def create_issue(root: Path, issue_name: str, raw_params: list[str] | None = Non
                 *[f"- {key}: {value}" for key, value in params.items()],
                 "",
                 "## Expected Goal",
-                "Reproduce the local bug, diagnose from logs, and fix minimally.",
+                "Capture evidence, locate root cause, and fix minimally.",
             ]
         )
         + "\n"
@@ -839,7 +839,7 @@ def latest_issue(root: Path) -> Path:
     issues = sorted((bfk_root(root) / "issues").glob("*"))
     issues = [path for path in issues if path.is_dir()]
     if not issues:
-        raise BfkError("No bfk issues found. Run $bfk-new first.")
+        raise BfkError("No bfk issues found. Run $bfk-capture first.")
     return issues[-1]
 
 

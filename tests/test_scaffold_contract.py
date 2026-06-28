@@ -14,12 +14,20 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_package_plugin_shell_contract():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert pyproject["project"]["name"] == "bug-fix-kit"
+    assert pyproject["project"]["description"] == (
+        "Local Codex plugin for repeatable bug capture, root-cause location, and fix sessions."
+    )
     assert pyproject["project"]["requires-python"] == ">=3.10"
     assert pyproject["project"].get("dependencies", []) == []
     assert pyproject["project"]["scripts"]["bfk"] == "bug_fix_kit.cli:main"
 
     init_text = (ROOT / "src" / "bug_fix_kit" / "__init__.py").read_text()
-    assert "__version__" in init_text
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
+    version_match = re.search(r'__version__ = "([^"]+)"', init_text)
+    assert version_match
+    assert version_match.group(1) == pyproject["project"]["version"] == manifest["version"]
+    uv_lock = (ROOT / "uv.lock").read_text()
+    assert f'name = "bug-fix-kit"\nversion = "{pyproject["project"]["version"]}"' in uv_lock
     assert (ROOT / "src" / "bug_fix_kit" / "__main__.py").exists()
     assert (ROOT / "src" / "bug_fix_kit" / "cli.py").exists()
 
@@ -56,6 +64,8 @@ def test_plugin_manifest_shell_contract():
 def test_readme_has_initial_install_section():
     readme = (ROOT / "README.md").read_text()
     readme_en = (ROOT / "README.en.md").read_text()
+    prd = (ROOT / "docs" / "prd.md").read_text()
+    release_checklist = (ROOT / "docs" / "release-checklist.md").read_text()
     assert "语言：简体中文 | [English](README.en.md)" in readme
     assert "Language: [简体中文](README.md) | English" in readme_en
     assert "## 安装" in readme
@@ -64,3 +74,18 @@ def test_readme_has_initial_install_section():
     assert "pip install bug-fix-kit" in readme_en
     assert "plugin_payload" in readme
     assert "plugin_payload" in readme_en
+
+    for text in [readme, readme_en, prd, release_checklist]:
+        assert "$bfk-capture" in text
+        assert "$bfk-locate" in text
+        assert "$bfk-fix" in text
+        assert "root-cause.md" in text
+        assert ("bfk-" + "init") not in text
+        assert ("bfk-" + "new") not in text
+        assert ("bfk-" + "run") not in text
+        assert ("bfk-" + "diagnose") not in text
+        assert ("$bfk-" + "init") not in text
+        assert ("$bfk-" + "new") not in text
+        assert ("$bfk-" + "run") not in text
+        assert ("$bfk-" + "diagnose") not in text
+        assert ("diagnosis" + ".md") not in text

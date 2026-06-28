@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]
+
+from bug_fix_kit.contract import REQUIRED_SKILLS
+
+SKILLS = list(REQUIRED_SKILLS)
 
 
 def skill_text(name: str) -> str:
@@ -19,33 +22,41 @@ def test_all_bfk_skills_exist_with_front_matter():
         assert "description:" in text
 
 
-def test_run_diagnose_fix_boundaries_are_explicit():
-    run = skill_text("bfk-run").lower()
-    assert "does not diagnose" in run
-    assert "does not modify" in run or "does not edit" in run
-    assert "do not invoke `bfk run`" in run
+def test_capture_locate_fix_boundaries_are_explicit():
+    capture = skill_text("bfk-capture").lower()
+    assert "one-stop capture" in capture
+    assert "project knowledge" in capture
+    assert "issue/session" in capture
+    assert "runner" in capture
+    assert "request.json" in capture
+    assert "response.json" in capture
+    assert "output.log" in capture
+    assert "does not analyze root cause" in capture
+    assert "does not modify" in capture or "does not edit" in capture
 
-    diagnose = skill_text("bfk-diagnose").lower()
-    assert "does not modify" in diagnose or "does not edit" in diagnose
-    assert "diagnosis.md" in diagnose
-    assert "problem status: blocked" in diagnose
-    assert "transport_error" in diagnose
+    locate = skill_text("bfk-locate").lower()
+    assert "root-cause.md" in locate
+    assert "direct chain" in locate
+    assert "log" in locate
+    assert "code" in locate
+    assert "unknown" in locate
+    assert "blocked" in locate
+    assert "do not guess" in locate
+    assert "does not modify" in locate or "does not edit" in locate
 
     fix = skill_text("bfk-fix").lower()
-    assert "does not run" in fix
+    assert "root-cause.md" in fix
+    assert "confirmed root cause" in fix
     assert "fix.md" in fix
-    assert "problem status" in fix
+    assert "changed_unverified" in fix
+    assert "fixed_verified" in fix
+    assert "unknown" in fix
     assert "blocked" in fix
+    assert "does not guess" in fix
 
 
-def test_init_and_new_boundaries_point_to_helpers():
-    init = skill_text("bfk-init").lower()
-    assert ".bfk/project.md" in init
-    assert "do not invoke `bfk init-project`" in init
-    assert "does not create issue" in init
-    assert "does not run" in init
-
-    new = skill_text("bfk-new").lower()
-    assert "do not invoke `bfk new`" in new
-    assert "runner.py" in new
-    assert "does not run" in new
+def test_old_skill_directories_are_removed():
+    assert not (ROOT / "skills" / ("bfk-" + "init")).exists()
+    assert not (ROOT / "skills" / ("bfk-" + "new")).exists()
+    assert not (ROOT / "skills" / ("bfk-" + "run")).exists()
+    assert not (ROOT / "skills" / ("bfk-" + "diagnose")).exists()

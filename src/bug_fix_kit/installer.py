@@ -8,8 +8,9 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import BinaryIO
 
+from .contract import REQUIRED_SKILLS
+
 PLUGIN_NAME = "bug-fix-kit"
-REQUIRED_SKILLS = ("bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix")
 PAYLOAD_DIR = "plugin_payload"
 DEV_PAYLOAD_NAMES = (".codex-plugin", "skills")
 EXCLUDED_NAMES = {

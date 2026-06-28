@@ -6,7 +6,10 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]
+
+from bug_fix_kit.contract import REQUIRED_SKILLS
+
+SKILLS = list(REQUIRED_SKILLS)
 
 
 def test_pyproject_has_hatch_release_ready_metadata_without_runtime_dependencies():
@@ -52,6 +55,11 @@ def test_plugin_manifest_contract_and_skill_dirs():
 
     for skill in SKILLS:
         assert (ROOT / "skills" / skill / "SKILL.md").exists()
+    for old in ["bfk-" + suffix for suffix in ["init", "new", "run", "diagnose"]]:
+        assert not (ROOT / "skills" / old).exists()
+    prompt_text = "\n".join(prompts)
+    for skill in SKILLS:
+        assert skill in prompt_text
 
 
 def test_source_layout_has_single_maintained_plugin_shell():
@@ -70,8 +78,9 @@ def test_release_scripts_have_full_hatch_payload_safety_gates():
     assert "--no-isolation" not in publish_release
     assert '"src/bug_fix_kit", "scripts", "tests"' in check_release
     assert "plugin_payload/bug-fix-kit" in check_release
+    assert "from bug_fix_kit.contract import REQUIRED_SKILLS" in check_release
     for skill in SKILLS:
-        assert skill in check_release
+        assert skill in (ROOT / "src" / "bug_fix_kit" / "contract.py").read_text()
     assert "--require-unclaimed-name" in publish_release
     assert "args.publish and args.allow_dirty" in publish_release
     assert "--allow-dirty is dry-run only" in publish_release

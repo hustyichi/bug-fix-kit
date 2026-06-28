@@ -1,7 +1,7 @@
 {
   "name": "bug-fix-kit",
-  "version": "0.1.1",
-  "description": "Local Codex plugin for repeatable bug reproduction, diagnosis, and fix sessions.",
+  "version": "0.1.2",
+  "description": "Local Codex plugin for capturing bug evidence, locating root cause, and applying minimal fixes.",
   "author": {
     "name": "Bryan"
   },
@@ -17,8 +17,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Bug Fix Kit",
-    "shortDescription": "Run local bug reproduction and fix loops from Codex.",
-    "longDescription": "Bug Fix Kit helps Codex turn a reported bug into a repeatable local session with project knowledge, issue runners, per-iteration evidence, diagnosis reports, and fix records.",
+    "shortDescription": "Capture evidence, locate root cause, and fix local bugs from Codex.",
+    "longDescription": "Bug Fix Kit helps Codex capture reproducible local evidence, locate a code-backed root cause, and apply the smallest verified fix.",
     "developerName": "Bryan",
     "category": "Coding",
     "capabilities": [
@@ -27,9 +27,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Initialize Bug Fix Kit for this local service.",
-      "Create a bfk issue for this failing request.",
-      "Run bfk and diagnose the latest iteration."
+      "Capture evidence for this local bug with $bfk-capture.",
+      "Locate the root cause with $bfk-locate using capture artifacts or logs.",
+      "Apply the minimal confirmed fix with $bfk-fix."
     ],
     "brandColor": "#0F766E",
     "screenshots": []

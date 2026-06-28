@@ -89,6 +89,8 @@ def test_write_project_creates_project_knowledge(tmp_path: Path):
     assert "http://localhost:8000" in text
     assert "logs/app.log" in text
     assert "LOCAL_AUTH_TOKEN" in text
+    assert "Locate before fixing." in text
+    assert "Diagnose before fixing." not in text
 
 
 def test_write_project_preserves_request_contract_with_local_auth(tmp_path: Path):
@@ -121,6 +123,9 @@ def test_create_issue_scaffolds_runner_and_latest_issue(tmp_path: Path):
 
     assert issue.name.endswith("_login_failed")
     assert (issue / "issue.md").exists()
+    issue_text = (issue / "issue.md").read_text()
+    assert "Capture evidence, locate root cause, and fix minimally." in issue_text
+    assert "diagnose from logs" not in issue_text
     runner = issue / "runner.py"
     assert runner.exists()
     assert (issue / "iterations").is_dir()
@@ -220,7 +225,7 @@ def test_execute_request_normalizes_transport_errors(monkeypatch: pytest.MonkeyP
 
 
 def test_latest_issue_requires_existing_issue(tmp_path: Path):
-    with pytest.raises(BfkError, match="No bfk issues"):
+    with pytest.raises(BfkError, match=r"Run \$bfk-capture first"):
         latest_issue(tmp_path)
 
 

@@ -12,8 +12,11 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from bug_fix_kit.contract import REQUIRED_SKILLS
+
 DIST_PREFIX = "bug_fix_kit-"
-REQUIRED_SKILLS = ("bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix")
 WHEEL_PAYLOAD_PREFIX = "bug_fix_kit/plugin_payload/bug-fix-kit"
 
 

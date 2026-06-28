@@ -7,6 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+from bug_fix_kit.contract import REQUIRED_SKILLS
+
 
 def run_bfk(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     merged = os.environ.copy()
@@ -28,7 +30,7 @@ def test_cli_exposes_only_plugin_management_commands(tmp_path: Path):
     assert help_result.returncode == 0
     assert "install" in help_result.stdout
     assert "doctor" in help_result.stdout
-    for command in ["init-project", "new", "run", "diagnose", "fix", "status", "verify", "auto"]:
+    for command in ["init-project", "new", "run", "diagnose", "capture", "locate", "fix", "status", "verify", "auto"]:
         assert command not in help_result.stdout
 
 
@@ -37,6 +39,9 @@ def test_removed_core_workflow_commands_are_not_available(tmp_path: Path):
         ("init-project", "--base-url", "http://localhost:8000"),
         ("new", "login_failed", "account=13900000000"),
         ("run", "--timeout", "3"),
+        ("capture", "login_failed"),
+        ("locate", "login_failed"),
+        ("fix", "login_failed"),
     ]:
         result = run_bfk(tmp_path, *args)
         assert result.returncode != 0
@@ -70,5 +75,5 @@ def test_install_accepts_public_plugin_root_and_marketplace_flags(tmp_path: Path
     assert (target / ".codex-plugin" / "plugin.json").exists()
     assert not (target / "pyproject.toml").exists()
     assert not (target / "bug_fix_kit").exists()
-    for skill in ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]:
+    for skill in REQUIRED_SKILLS:
         assert (target / "skills" / skill / "SKILL.md").exists()

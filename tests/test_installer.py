@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from bug_fix_kit.contract import REQUIRED_SKILLS
 from bug_fix_kit.installer import InstallError, install_plugin
 
 
@@ -13,7 +14,7 @@ def make_plugin_source(root: Path) -> Path:
     (root / ".codex-plugin" / "plugin.json").write_text(
         json.dumps({"name": "bug-fix-kit", "version": "0.1.0", "skills": "./skills/"})
     )
-    for skill in ["bfk-init", "bfk-new", "bfk-run", "bfk-diagnose", "bfk-fix"]:
+    for skill in REQUIRED_SKILLS:
         skill_dir = root / "skills" / skill
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(f"---\nname: {skill}\n---\n")
@@ -40,7 +41,9 @@ def test_install_plugin_copies_only_payload_and_bootstraps_personal_marketplace(
     assert result.plugin_dir == target
     assert result.marketplace_path == marketplace
     assert (target / ".codex-plugin" / "plugin.json").exists()
-    assert (target / "skills" / "bfk-run" / "SKILL.md").exists()
+    assert (target / "skills" / "bfk-capture" / "SKILL.md").exists()
+    assert (target / "skills" / "bfk-locate" / "SKILL.md").exists()
+    assert (target / "skills" / "bfk-fix" / "SKILL.md").exists()
     assert not (target / "keep.txt").exists()
     assert not (target / "bug_fix_kit").exists()
     assert not (target / ".git").exists()

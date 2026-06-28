@@ -2,13 +2,13 @@
 
 Language: [简体中文](README.md) | English
 
-Bug Fix Kit (`bfk`) is a PyPI-distributed local Codex plugin for repeatable bug reproduction, diagnosis, and fix sessions.
+Bug Fix Kit (`bfk`) is a PyPI-distributed local Codex plugin that compresses local service bug work into three steps: capture evidence, locate the root cause, and apply the smallest fix.
 
-It keeps deterministic mechanics in a small stdlib Python helper CLI and leaves root-cause diagnosis/fix judgment to Codex skills.
+It keeps deterministic request replay, log capture, and artifact writing in a small stdlib Python helper, while Codex skills handle root-cause judgment and code repair.
 
 ## Install
 
-Published package install:
+Release install:
 
 ```bash
 python3 -m pip install bug-fix-kit
@@ -17,28 +17,22 @@ bfk doctor
 bfk install --yes
 ```
 
-`pip install bug-fix-kit` installs the `bfk` CLI only; it does not automatically enable a Codex plugin.
+`pip install bug-fix-kit` installs only the `bfk` CLI; it does not automatically enable a Codex plugin.
 
-`bfk install` copies the plugin to `~/plugins/bug-fix-kit`, updates the personal marketplace file at `~/.agents/plugins/marketplace.json`, and prints the next `codex plugin add bug-fix-kit@personal` command. Then enable `Bug Fix Kit` from Codex `/plugins` and start a new Codex thread if skills are not immediately visible.
+`bfk install` copies the plugin to `~/plugins/bug-fix-kit`, updates `~/.agents/plugins/marketplace.json`, and prints the next `codex plugin add bug-fix-kit@personal` command. Then enable `Bug Fix Kit` from Codex `/plugins`; start a new Codex thread if skills are not immediately visible.
 
-For local development:
+Local development install:
 
 ```bash
 python3 -m pip install -e .
 bfk install --yes
 ```
 
-Advanced local install paths are explicit:
+`--plugin-root` / `--source-root` may point at a custom plugin source; when it points at this repository root, `bfk` copies only `.codex-plugin/` and `skills/`. From an installed wheel, `bfk` uses the generated `bug_fix_kit/plugin_payload/bug-fix-kit` package resource. Existing installed plugin directories are overwritten only with `--yes`.
 
-```bash
-bfk install --marketplace ~/.agents/plugins/marketplace.json --yes
-```
+The PyPI distribution is `bug-fix-kit`, the console script is `bfk`, and the Python import package is `bug_fix_kit`.
 
-`--plugin-root` / `--source-root` may still point at a custom plugin source; when it points at this repository root, `bfk` copies only the maintained `.codex-plugin/` and `skills/` trees. From an installed wheel, `bfk` uses the build-generated `bug_fix_kit/plugin_payload/bug-fix-kit` package resource. Existing installed plugin directories are not overwritten unless `--yes` is passed.
-
-The PyPI distribution is `bug-fix-kit`, the installed console script is `bfk`, and the Python import package is `bug_fix_kit`.
-
-## Local helper CLI
+## Local Helper CLI
 
 ```bash
 bfk --help
@@ -46,24 +40,23 @@ bfk doctor
 bfk install --yes
 ```
 
-Implemented CLI commands:
+The helper CLI is only for plugin installation and shell checks. Bug handling is done by Codex skills; the CLI does not expose workflow commands.
 
-- `bfk install` — copy/register the local plugin and bootstrap/update the personal marketplace.
-- `bfk doctor` — report package/plugin shell status.
-
-The helper CLI is only for plugin installation and shell checks. Project initialization, issue creation, request execution, diagnosis, and fixes are Codex skill workflows, so the CLI does not provide `bfk init-project`, `bfk new`, `bfk run`, `bfk diagnose`, `bfk fix`, `bfk status`, `bfk verify`, or `bfk auto`.
-
-## Codex workflow
+## Codex Workflow
 
 ```text
-$bfk-init
-$bfk-new <issue_name> <key=value ...>
-$bfk-run [issue_id]
-$bfk-diagnose [issue_id]
+$bfk-capture "<issue_name>" <key=value ...>
+$bfk-locate [issue_id]
 $bfk-fix [issue_id]
 ```
 
-The loop writes evidence under `.bfk/`:
+Direct log location also uses locate:
+
+```text
+$bfk-locate --log logs/error.log --issue "login failed"
+```
+
+Loop evidence lives under `.bfk/`:
 
 ```text
 .bfk/
@@ -77,75 +70,35 @@ The loop writes evidence under `.bfk/`:
                 ├── request.json
                 ├── response.json
                 ├── output.log
-                ├── diagnosis.md   # skill-created, optional until $bfk-diagnose
-                └── fix.md         # skill-created, optional until $bfk-fix
+                ├── capture.md
+                ├── root-cause.md
+                └── fix.md
 ```
 
-## Actual mechanics
+## Mechanics
 
-### Project initialization
+### Capture
 
-`$bfk-init` writes `.bfk/PROJECT.md` directly through Codex, recording base URL, log files, default headers, auth note, request sample, and request contract. Headers are preserved in generated issue runners; auth notes are documentation only.
+`$bfk-capture` is the one-stop evidence entrypoint. From project knowledge, request samples, request params, or an existing issue, it creates or reuses the issue/session and runner, executes one local request, and captures request, response, and new logs.
 
-When the user provides a real curl/request sample, `$bfk-init` keeps the raw sample, request contract, parameter mapping table, and concise repository evidence in the same Markdown file. Common curl samples should be distilled into method, path, headers, JSON body, and nested JSON-string payloads such as `input[0].content[0].text`. `.bfk/` is a local gitignored work area, so auth headers and other replay context are preserved for later requests.
+Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`.
 
-### Issue creation
+### Locate
 
-`$bfk-new` requires `.bfk/PROJECT.md`; if it is missing, it tells the user to run `$bfk-init`.
+`$bfk-locate` reads capture artifacts or explicit log files plus related code. It writes `root-cause.md` by tracing the direct chain from symptom to log/response evidence to code path to root cause.
 
-Parameter handling is intentionally simple:
+If evidence is insufficient, it reports `unknown` with missing evidence. If service, logs, inputs, or code context are unavailable, it reports `blocked`. It must not treat the final exception as the confirmed root cause by itself.
 
-- `key=value` becomes `PARAMS[key] = value` in `runner.py`.
-- free-form positional values are joined into a single `value` parameter when no explicit `value=` is provided.
-- when `.bfk/PROJECT.md` has a request sample and `Parameter Contract`, the generated runner copies the full sample request and replaces mapped parameters; omitted mapped parameters keep their sample values.
-- bfk does not infer endpoint-specific fields such as passwords or user IDs outside the request contract; edit `PROJECT.md` or the generated `runner.py` when a case needs custom request shape.
+Boundary: analyzes and writes the root-cause report only; it does not execute requests, edit code, or write `fix.md`.
 
-Without a request contract, generated runners default to:
+### Fix
 
-- `POST {BASE_URL}/`
-- JSON body from `PARAMS`
-- headers from `.bfk/PROJECT.md` plus `X-BugFix-Issue`
-- `LOG_FILES` from `.bfk/PROJECT.md`
-- `AFTER_REQUEST_WAIT_SECONDS = 2`
+`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the same issue for verification. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
 
-With a request contract, generated runners default to:
+Boundary: it does not guess fixes from `unknown` / `blocked` reports and does not claim verification it did not run.
 
-- method/path from the sample request or `Endpoint`
-- JSON body from the sample request
-- parameters written to `body.*` or nested `text.*` locations from `Parameter Contract`
-- nested payloads JSON-encoded back into the user text field
-- `${ENV_NAME}` header placeholders explicitly written in the sample are expanded from environment variables at runtime
+## MVP Boundaries
 
-Running `python .bfk/issues/<issue_id>/runner.py` prints the request JSON and does not send HTTP.
-
-### Run artifacts
-
-`$bfk-run [issue_id]` resolves the selected issue, loads `runner.py`, records file offsets, executes the HTTP request, waits if configured, reads new log content, then writes the next iteration directory. This is executed directly by the Codex skill, not through the `bfk` CLI.
-
-`response.json` behavior:
-
-- HTTP responses, including 4xx/5xx, are recorded with `transport_error: null`.
-- connection failures, bad URLs, malformed request data, and non-serializable payloads are recorded as `transport_error.type = "transport_error"`.
-- runner import/config/build failures are recorded as `transport_error.type = "runner_error"`.
-- invalid explicit issue IDs should fail fast with `issue not found: <id>` and no traceback.
-
-`output.log` contains only log content appended after the captured offset. If a log file shrinks between offset capture and read, the output includes a `log file truncated` note before reading from the start.
-
-## E2E smoke check
-
-A real mock-service check has been run against the current product:
-
-1. start local `127.0.0.1` mock HTTP server;
-2. use `$bfk-init` with `Content-Type` and `Authorization` headers;
-3. use `$bfk-new "login failed" account=13900000000 mode=e2e`;
-4. use `$bfk-run`;
-5. verify `request.json`, `response.json`, and `output.log`.
-
-Observed result: mock service received `POST /`, `response.json.status_code` was `200`, `transport_error` was `null`, request headers and JSON body matched the runner, and mock logs were captured in `output.log`.
-
-## MVP boundaries
-
-- `$bfk-run` executes and captures only; it does not diagnose or edit code.
-- `$bfk-diagnose` writes `diagnosis.md` only; it does not edit code or run requests.
-- `$bfk-fix` writes `fix.md` and may edit code only for clear code defects; it does not run verification.
-- No demo HTTP app, Web UI, OpenTelemetry, remote logs, YAML config, or auto-fix loop in MVP.
+- No runtime dependencies.
+- No demo HTTP app, Web UI, OpenTelemetry, remote logging, YAML config, or automatic mocks.
+- No public workflow CLI commands.
