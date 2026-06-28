@@ -2,98 +2,175 @@
 
 语言：简体中文 | [English](README.en.md)
 
-Bug Fix Kit（`bfk`）是一个可通过 PyPI 分发的本地 Codex 插件，用于把本地服务异常处理压成三个步骤：采集证据、定位根因、执行最小修复。
+Bug Fix Kit（`bfk`）是一个本地 Codex 插件，帮你把一次本地服务 bug 处理成清晰的三步：
 
-它把确定性的请求重放、日志采集和 artifact 写入放在 stdlib Python helper 中，把根因判断和代码修复交给 Codex skills。
+```text
+采集证据 -> 定位根因 -> 最小修复
+```
+
+它适合这样的场景：你有一个本地运行的服务、一个可以复现问题的请求，以及一份本地日志。你把这些信息交给 Codex，BFK 会保存请求、响应和本次新增日志，让后续定位和修复不靠猜。
 
 ## 安装
 
-发布版安装：
+### 发布版安装
 
 ```bash
 python3 -m pip install bug-fix-kit
+bfk doctor
+bfk install --yes
+```
+
+`pip install bug-fix-kit` 只安装本地 `bfk` 命令。`bfk install --yes` 会安装 Codex 插件，并打印类似下面的下一步命令：
+
+```bash
+codex plugin add bug-fix-kit@personal
+```
+
+执行打印出的命令后，在 Codex 的 `/plugins` 中启用 `Bug Fix Kit`。如果没有立刻看到 BFK skills，开一个新的 Codex 线程即可。
+
+## 快速开始
+
+### 1. 准备本地服务
+
+使用前请先确认：
+
+- 本地服务已经启动。
+- 你知道要请求的 base URL，例如 `http://127.0.0.1:8000`。
+- 你知道日志文件位置，例如 `logs/app.log`。
+- 最好有一条可以复现问题的 curl 请求。
+
+首次使用时，可以直接把这些信息告诉 Codex：
+
+```text
+我要用 Bug Fix Kit 调试这个项目。
+本地服务：http://127.0.0.1:8000
+日志文件：logs/app.log
+复现请求：
+curl --location 'http://127.0.0.1:8000/login' \
+  --header 'Content-Type: application/json' \
+  --data '{"account":"13900000000","password":"bad"}'
+```
+
+BFK 会把项目级配置保存到 `.bfk/PROJECT.md`，后面同一个项目可以复用。
+
+### 2. 采集一次复现证据
+
+在 Codex 中运行：
+
+```text
+$bfk-capture "login failed" account=13900000000 password=bad
+```
+
+`$bfk-capture` 会执行一次本地请求，并写入：
+
+- `.bfk/request.json`：实际发送的请求
+- `.bfk/response.json`：本次响应或连接错误
+- `.bfk/output.log`：请求期间日志文件新增的内容
+
+### 3. 定位根因
+
+```text
+$bfk-locate
+```
+
+Codex 会读取 capture 产物、日志和相关代码，写出 `.bfk/root-cause.md`。如果证据不足，它会说明缺什么，而不是猜根因。
+
+只有日志、没有可复现请求时，也可以这样用：
+
+```text
+$bfk-locate --log logs/error.log --issue "login failed"
+```
+
+### 4. 执行最小修复
+
+```text
+$bfk-fix
+```
+
+`$bfk-fix` 只在 `root-cause.md` 已经确认代码缺陷时修改代码。能复用 capture 验证时会重新跑请求；不能验证时会在 `.bfk/fix.md` 里写清楚。
+
+## 日志怎么获取
+
+BFK 当前使用本地文件日志。
+
+执行请求前，它会记录日志文件当前大小；请求完成后，再读取这之后新增的内容，并写入 `.bfk/output.log`。所以 `output.log` 存的是日志文本，不是偏移量。
+
+这个机制对本地 `logging.FileHandler`、普通 app log 文件很友好。需要注意：
+
+- 日志路径要写对，推荐使用相对项目根目录的路径或绝对路径。
+- 如果服务异步写日志，可以把等待时间调长后再 capture。
+- 如果同时有其他请求写日志，`output.log` 可能混入其他请求的日志。
+- 如果日志写到 Docker stdout、journalctl 或远程日志，需要先把相关日志落到本地文件，或直接用 `$bfk-locate --log ...`。
+
+更精确的做法是在应用日志里打印请求 ID。BFK 生成的请求会带上 `X-BugFix-Issue` header，你也可以让服务把类似 request id / capture id 写进日志，定位时会更稳。
+
+## `.bfk/` 里有什么
+
+```text
+.bfk/
+├── PROJECT.md       # 本地服务、日志、请求样例等项目配置
+├── issue.md         # 当前问题描述和参数
+├── runner.py        # 当前问题的请求构造脚本
+├── request.json     # 本次实际请求
+├── response.json    # 本次响应
+├── output.log       # 本次执行窗口内新增日志
+├── root-cause.md    # locate 生成的根因报告
+└── fix.md           # fix 生成的修复记录
+```
+
+BFK 只保留一个当前问题。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md` 和 `fix.md`。
+
+## 常见问题
+
+### `bfk` 命令里为什么没有 capture / locate / fix？
+
+这是正常的。`bfk` CLI 只负责安装和检查插件：
+
+```bash
 bfk --help
 bfk doctor
 bfk install --yes
 ```
 
-`pip install bug-fix-kit` 只安装 `bfk` CLI；不会自动启用 Codex 插件。
+真正处理 bug 的入口是 Codex skills：
 
-`bfk install` 会把插件复制到 `~/plugins/bug-fix-kit`，更新个人 marketplace 文件 `~/.agents/plugins/marketplace.json`，并打印下一步要执行的 `codex plugin add bug-fix-kit@personal` 命令。随后在 Codex `/plugins` 中启用 `Bug Fix Kit`；如果 skills 没有立即出现，开启一个新的 Codex 线程。
+```text
+$bfk-capture
+$bfk-locate
+$bfk-fix
+```
 
-本地开发安装：
+### 没有 curl 请求可以用吗？
+
+可以，但效果会差一些。你可以先提供 base URL、endpoint、headers 和关键参数，让 BFK 生成一个简单请求。最好还是补一条真实 curl，请求结构越真实，capture 越可靠。
+
+### `output.log` 为空怎么办？
+
+先检查三件事：
+
+- `.bfk/PROJECT.md` 里的日志路径是否正确。
+- 本地服务是否真的把日志写入文件。
+- 请求完成后日志是否异步延迟写入。
+
+必要时，把日志文件改成绝对路径，或把请求后的等待时间调大。
+
+### 我只想让 Codex 看一份错误日志，可以吗？
+
+可以，直接运行：
+
+```text
+$bfk-locate --log logs/error.log --issue "这里写问题现象"
+```
+
+这种模式可以定位根因，但通常无法自动复现和验证修复。
+
+## 本地开发
+
+开发本插件时：
 
 ```bash
 python3 -m pip install -e .
 bfk install --yes
 ```
 
-`--plugin-root` / `--source-root` 可指定自定义插件源；指向本仓库根目录时只复制 `.codex-plugin/` 与 `skills/`。从 wheel 运行时，`bfk` 使用构建生成的 `bug_fix_kit/plugin_payload/bug-fix-kit` 包资源。已存在的插件安装目录只有在传入 `--yes` 时才会被覆盖。
-
-PyPI distribution 名称是 `bug-fix-kit`，安装后的 console script 是 `bfk`，Python import package 是 `bug_fix_kit`。
-
-## 本地 helper CLI
-
-```bash
-bfk --help
-bfk doctor
-bfk install --yes
-```
-
-helper CLI 只负责插件安装和外壳检查。项目问题处理由 Codex skills 完成；CLI 不提供工作流命令。
-
-## Codex 工作流
-
-```text
-$bfk-capture "<issue_name>" <key=value ...>
-$bfk-locate
-$bfk-fix
-```
-
-日志文件直接定位也走 locate：
-
-```text
-$bfk-locate --log logs/error.log --issue "login failed"
-```
-
-当前异常证据直接写在 `.bfk/` 下：
-
-```text
-.bfk/
-├── PROJECT.md
-├── issue.md
-├── runner.py
-├── request.json
-├── response.json
-├── output.log
-├── root-cause.md
-└── fix.md
-```
-
-## 实际机制
-
-### Capture
-
-`$bfk-capture` 是一站式证据采集入口。它根据本地项目知识、请求样例和请求参数，覆盖 `.bfk/` 下的当前异常证据，生成 `runner.py`，执行一次本地请求，采集 request、response 和新增日志。
-
-边界：只执行和采集，不定位根因、不编辑代码、不写 `root-cause.md`。新 capture 会清理旧的 `root-cause.md` 和 `fix.md`。
-
-### Locate
-
-`$bfk-locate` 根据 capture 产物或用户直接提供的日志文件读取相关代码，沿着“症状 -> 日志/响应证据 -> 代码路径 -> 根因”的直线链路写 `root-cause.md`。
-
-如果证据不足，它必须输出 `unknown` 并列出缺失证据；如果服务、日志、输入或代码上下文不可用，它输出 `blocked`。它不能把最后一个异常当作已确认根因。
-
-边界：只分析和写根因报告，不执行请求、不编辑代码、不写 `fix.md`。
-
-### Fix
-
-`$bfk-fix` 只在 `root-cause.md` 给出已确认代码缺陷时执行最小修复。若存在可复现 capture 上下文，它会尽量复用 `.bfk/` 下的当前请求验证；若只有日志定位上下文，则写出 `changed_unverified` 并提示用户补充可复现请求或手动验证。
-
-边界：不从 `unknown` / `blocked` 报告猜修，不声称未执行过的验证。
-
-## MVP 边界
-
-- 无 runtime dependencies。
-- 不提供 demo HTTP app、Web UI、OpenTelemetry、远程日志、YAML config 或自动 mock。
-- 不新增公共工作流 CLI 命令。
+发布包中的插件内容来自构建生成的 `bug_fix_kit/plugin_payload/bug-fix-kit`。从源码安装时，`--plugin-root` / `--source-root` 可以指向本仓库根目录；安装器只会复制 `.codex-plugin/` 和 `skills/`。
