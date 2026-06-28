@@ -9,6 +9,7 @@ Bug Fix Kit（`bfk`）是一个本地 Codex 插件包，用于把一次本地服
 - Python stdlib helper CLI 只负责插件安装、外壳检查，以及 skills 复用的确定性请求/日志/artifact mechanics。
 - Codex skills 暴露三个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-fix`。
 - 根因定位必须基于日志/响应证据和代码直线链路；证据不足时输出 `unknown` 或 `blocked`，不能猜根因。
+- 当前实现只跟踪一个活动异常；`.bfk/` 顶层就是当前 capture，不维护多 issue 或多轮 iteration。
 
 MVP 不内置 demo HTTP app、不提供 Web UI、不自动 mock 外部依赖。
 
@@ -47,8 +48,8 @@ CLI 不提供公共问题处理命令。
 
 ```text
 $bfk-capture "<issue_name>" <key=value ...>
-$bfk-locate [issue_id]
-$bfk-fix [issue_id]
+$bfk-locate
+$bfk-fix
 ```
 
 直接日志定位：
@@ -62,49 +63,45 @@ $bfk-locate --log logs/error.log --issue "login failed"
 ```text
 .bfk/
 ├── PROJECT.md
-└── issues/
-    └── <YYYYMMDD_HHMMSS>_<issue_name>/
-        ├── issue.md
-        ├── runner.py
-        └── iterations/
-            └── <nnn>/
-                ├── request.json
-                ├── response.json
-                ├── output.log
-                ├── capture.md
-                ├── root-cause.md
-                └── fix.md
+├── issue.md
+├── runner.py
+├── request.json
+├── response.json
+├── output.log
+├── root-cause.md
+└── fix.md
 ```
 
 规则：
 
-- `.bfk/PROJECT.md` 是项目级本地重放知识。
-- 每个 issue 可有自己的 `runner.py`；不要求项目级通用 runner 库。
-- 每次 capture 创建新的递增 iteration。
-- `request.json`、`response.json`、`output.log`、`capture.md` 由 `$bfk-capture` 写入。
+- `.bfk/PROJECT.md` 是项目级最小本地重放配置。
+- `.bfk/runner.py` 是当前异常的请求构造脚本。
+- 每次 capture 覆盖 `.bfk/` 顶层当前异常产物。
+- 新 capture 会删除旧的 `request.json`、`response.json`、`output.log`、`issue.md`、`runner.py`、`root-cause.md`、`fix.md`。
+- `request.json`、`response.json`、`output.log` 由 `$bfk-capture` 写入。
 - `root-cause.md` 由 `$bfk-locate` 写入。
 - `fix.md` 由 `$bfk-fix` 写入。
 - 日志直接定位场景可以没有 `runner.py`、`request.json` 或 `response.json`，但报告必须写明缺失证据。
 
 ## 5. `$bfk-capture`
 
-作用：一站式创建或复用本地 issue/session，重放请求并采集证据。
+作用：一站式创建或替换当前异常 capture，重放请求并采集证据。
 
 输入：
 
 - issue 描述；
 - 请求参数或请求样例；
 - base URL、headers、日志文件、等待时间等项目上下文；
-- 可选已有 issue id。
+- 可选已有 `.bfk/PROJECT.md` 默认配置。
 
 行为：
 
 1. 解析或补充 `.bfk/PROJECT.md` 所需的最小项目知识。
-2. 创建或复用 issue/session。
-3. 创建或复用 `runner.py`。
+2. 覆盖 `.bfk/` 下当前异常产物，保留 `.bfk/PROJECT.md`。
+3. 创建新的 `runner.py`。
 4. 执行一次本地请求。
 5. 采集 request、response 和 offset 后新增日志。
-6. 写入下一轮 iteration 的 `request.json`、`response.json`、`output.log`、`capture.md`。
+6. 写入 `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`。
 
 边界：不定位根因、不编辑代码、不写 `root-cause.md` 或 `fix.md`。
 
@@ -114,7 +111,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 
 输入：
 
-- 最新 iteration 的 `request.json`、`response.json`、`output.log`、`capture.md`；
+- `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`；
 - 或用户显式提供的日志文件与 issue 描述；
 - 相关本地代码。
 
@@ -148,7 +145,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 1. 读取最新 `root-cause.md`。
 2. 若状态为 `unknown`、`blocked`、缺失根因或不是代码缺陷，则拒绝编辑。
 3. 若根因明确，执行最小修复。
-4. 有可复现 capture 上下文时，复用同一 issue 验证。
+4. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证。
 5. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
 
 最终状态：

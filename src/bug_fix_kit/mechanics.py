@@ -6,7 +6,6 @@ import re
 import shlex
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -93,9 +92,6 @@ def write_project(
         headers.update(default_headers)
 
     endpoint_method, endpoint_path = _resolve_endpoint(endpoint, parsed_sample)
-    mappings = _parameter_mappings_from_sample(parsed_sample) if parsed_sample else []
-    evidence = repository_evidence or _infer_repository_evidence(root, parsed_sample, mappings)
-
     lines = [
         "# Bug Fix Kit Project Knowledge",
         "",
@@ -126,34 +122,6 @@ def write_project(
             request_sample.strip(),
             "```",
         ]
-    if parsed_sample:
-        contract = _request_contract_lines(parsed_sample, endpoint_method, endpoint_path)
-        lines += ["", "## Request Contract", *contract]
-        if mappings:
-            lines += [
-                "",
-                "## Parameter Contract",
-                "",
-                "| Name | Location | Required | Default | Source |",
-                "| --- | --- | --- | --- | --- |",
-                *[_mapping_table_row(mapping) for mapping in mappings],
-            ]
-    if evidence:
-        lines += ["", "## Repository Evidence", *[f"- {item}" for item in evidence]]
-    if validation_notes or parsed_sample:
-        notes = validation_notes[:]
-        if parsed_sample and parsed_sample.inner_json_path:
-            notes.append("Inner payload must be JSON-encoded into the configured user text field.")
-        if mappings:
-            notes.append("bfk-capture may reuse sample values when a mapped parameter is omitted.")
-        lines += ["", "## Validation Notes", *[f"- {item}" for item in notes]]
-    lines += [
-        "",
-        "## Fix Principles",
-        "- Locate before fixing.",
-        "- Prefer minimal code changes.",
-        "- Do not refactor unrelated code.",
-    ]
     path.write_text("\n".join(lines) + "\n")
     return path
 
@@ -623,9 +591,19 @@ def create_issue(root: Path, issue_name: str, raw_params: list[str] | None = Non
     raw_params = raw_params or []
     params = _parse_params(raw_params)
     config = _read_project_config(root)
-    issue_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{slugify_issue_name(issue_name)}"
-    issue_dir = bfk_root(root) / "issues" / issue_id
-    (issue_dir / "iterations").mkdir(parents=True, exist_ok=False)
+    issue_dir = bfk_root(root)
+    issue_dir.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "issue.md",
+        "runner.py",
+        "request.json",
+        "response.json",
+        "output.log",
+        "capture.md",
+        "root-cause.md",
+        "fix.md",
+    ):
+        (issue_dir / name).unlink(missing_ok=True)
 
     (issue_dir / "issue.md").write_text(
         "\n".join(
@@ -836,20 +814,15 @@ if __name__ == "__main__":
 
 
 def latest_issue(root: Path) -> Path:
-    issues = sorted((bfk_root(root) / "issues").glob("*"))
-    issues = [path for path in issues if path.is_dir()]
-    if not issues:
-        raise BfkError("No bfk issues found. Run $bfk-capture first.")
-    return issues[-1]
+    path = bfk_root(root)
+    if not (path / "issue.md").exists() and not (path / "runner.py").exists():
+        raise BfkError("No bfk capture found. Run $bfk-capture first.")
+    return path
 
 
 def next_iteration_dir(issue_dir: Path) -> Path:
-    iterations = issue_dir / "iterations"
-    iterations.mkdir(parents=True, exist_ok=True)
-    nums = [int(path.name) for path in iterations.iterdir() if path.is_dir() and path.name.isdigit()]
-    path = iterations / f"{(max(nums) if nums else 0) + 1:03d}"
-    path.mkdir(exist_ok=False)
-    return path
+    issue_dir.mkdir(parents=True, exist_ok=True)
+    return issue_dir
 
 
 def load_runner_request(runner_path: Path) -> dict[str, Any]:

@@ -26,11 +26,12 @@ def test_capture_locate_fix_boundaries_are_explicit():
     capture = skill_text("bfk-capture").lower()
     assert "one-stop capture" in capture
     assert "project knowledge" in capture
-    assert "issue/session" in capture
+    assert "single capture" in capture
     assert "runner" in capture
     assert "request.json" in capture
     assert "response.json" in capture
     assert "output.log" in capture
+    assert "capture.md" not in capture
     assert "does not analyze root cause" in capture
     assert "does not modify" in capture or "does not edit" in capture
 

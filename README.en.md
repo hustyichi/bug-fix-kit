@@ -46,8 +46,8 @@ The helper CLI is only for plugin installation and shell checks. Bug handling is
 
 ```text
 $bfk-capture "<issue_name>" <key=value ...>
-$bfk-locate [issue_id]
-$bfk-fix [issue_id]
+$bfk-locate
+$bfk-fix
 ```
 
 Direct log location also uses locate:
@@ -56,32 +56,27 @@ Direct log location also uses locate:
 $bfk-locate --log logs/error.log --issue "login failed"
 ```
 
-Loop evidence lives under `.bfk/`:
+The current bug evidence lives directly under `.bfk/`:
 
 ```text
 .bfk/
 ├── PROJECT.md
-└── issues/
-    └── <issue_id>/
-        ├── issue.md
-        ├── runner.py
-        └── iterations/
-            └── 001/
-                ├── request.json
-                ├── response.json
-                ├── output.log
-                ├── capture.md
-                ├── root-cause.md
-                └── fix.md
+├── issue.md
+├── runner.py
+├── request.json
+├── response.json
+├── output.log
+├── root-cause.md
+└── fix.md
 ```
 
 ## Mechanics
 
 ### Capture
 
-`$bfk-capture` is the one-stop evidence entrypoint. From project knowledge, request samples, request params, or an existing issue, it creates or reuses the issue/session and runner, executes one local request, and captures request, response, and new logs.
+`$bfk-capture` is the one-stop evidence entrypoint. From project knowledge, request samples, and request params, it replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
 
-Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`.
+Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture clears stale `root-cause.md` and `fix.md`.
 
 ### Locate
 
@@ -93,7 +88,7 @@ Boundary: analyzes and writes the root-cause report only; it does not execute re
 
 ### Fix
 
-`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the same issue for verification. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
+`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the current request under `.bfk/` for verification. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
 
 Boundary: it does not guess fixes from `unknown` / `blocked` reports and does not claim verification it did not run.
 

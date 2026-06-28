@@ -46,8 +46,8 @@ helper CLI 只负责插件安装和外壳检查。项目问题处理由 Codex sk
 
 ```text
 $bfk-capture "<issue_name>" <key=value ...>
-$bfk-locate [issue_id]
-$bfk-fix [issue_id]
+$bfk-locate
+$bfk-fix
 ```
 
 日志文件直接定位也走 locate：
@@ -56,32 +56,27 @@ $bfk-fix [issue_id]
 $bfk-locate --log logs/error.log --issue "login failed"
 ```
 
-循环证据写在 `.bfk/` 下：
+当前异常证据直接写在 `.bfk/` 下：
 
 ```text
 .bfk/
 ├── PROJECT.md
-└── issues/
-    └── <issue_id>/
-        ├── issue.md
-        ├── runner.py
-        └── iterations/
-            └── 001/
-                ├── request.json
-                ├── response.json
-                ├── output.log
-                ├── capture.md
-                ├── root-cause.md
-                └── fix.md
+├── issue.md
+├── runner.py
+├── request.json
+├── response.json
+├── output.log
+├── root-cause.md
+└── fix.md
 ```
 
 ## 实际机制
 
 ### Capture
 
-`$bfk-capture` 是一站式证据采集入口。它根据本地项目知识、请求样例、请求参数或已有 issue，创建或复用 issue/session 与 runner，执行一次本地请求，采集本轮 request、response 和新增日志。
+`$bfk-capture` 是一站式证据采集入口。它根据本地项目知识、请求样例和请求参数，覆盖 `.bfk/` 下的当前异常证据，生成 `runner.py`，执行一次本地请求，采集 request、response 和新增日志。
 
-边界：只执行和采集，不定位根因、不编辑代码、不写 `root-cause.md`。
+边界：只执行和采集，不定位根因、不编辑代码、不写 `root-cause.md`。新 capture 会清理旧的 `root-cause.md` 和 `fix.md`。
 
 ### Locate
 
@@ -93,7 +88,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 
 ### Fix
 
-`$bfk-fix` 只在 `root-cause.md` 给出已确认代码缺陷时执行最小修复。若存在可复现 capture 上下文，它会尽量复用同一 issue 验证；若只有日志定位上下文，则写出 `changed_unverified` 并提示用户补充可复现请求或手动验证。
+`$bfk-fix` 只在 `root-cause.md` 给出已确认代码缺陷时执行最小修复。若存在可复现 capture 上下文，它会尽量复用 `.bfk/` 下的当前请求验证；若只有日志定位上下文，则写出 `changed_unverified` 并提示用户补充可复现请求或手动验证。
 
 边界：不从 `unknown` / `blocked` 报告猜修，不声称未执行过的验证。
 

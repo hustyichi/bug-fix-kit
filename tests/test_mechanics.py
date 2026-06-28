@@ -89,7 +89,7 @@ def test_write_project_creates_project_knowledge(tmp_path: Path):
     assert "http://localhost:8000" in text
     assert "logs/app.log" in text
     assert "LOCAL_AUTH_TOKEN" in text
-    assert "Locate before fixing." in text
+    assert "## Fix Principles" not in text
     assert "Diagnose before fixing." not in text
 
 
@@ -112,23 +112,22 @@ def test_write_project_preserves_request_contract_with_local_auth(tmp_path: Path
     assert "sk-secret" in text
     assert "Bearer ${LITELLM_API_KEY}" not in text
     assert "- Endpoint: POST /v1/responses" in text
-    assert "| task_id | text.params.task_id | yes | sample | sample+code |" in text
-    assert "endpoint: src/api.py:1 contains `/v1/responses`" in text
+    assert "## Parameter Contract" not in text
+    assert "## Repository Evidence" not in text
 
 
-def test_create_issue_scaffolds_runner_and_latest_issue(tmp_path: Path):
+def test_create_issue_scaffolds_current_capture_at_bfk_root(tmp_path: Path):
     write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
 
     issue = create_issue(tmp_path, "login failed", ["account=13900000000", "freeform"])
 
-    assert issue.name.endswith("_login_failed")
+    assert issue == tmp_path / ".bfk"
     assert (issue / "issue.md").exists()
     issue_text = (issue / "issue.md").read_text()
     assert "Capture evidence, locate root cause, and fix minimally." in issue_text
     assert "diagnose from logs" not in issue_text
     runner = issue / "runner.py"
     assert runner.exists()
-    assert (issue / "iterations").is_dir()
     assert latest_issue(tmp_path) == issue
 
     request = load_runner_request(runner)
@@ -175,15 +174,22 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
     assert inner["params"]["target"]["code"] == "LGI-new"
 
 
-def test_next_iteration_dir_never_overwrites(tmp_path: Path):
-    issue = tmp_path / ".bfk" / "issues" / "20260625_120000_case"
-    (issue / "iterations" / "001").mkdir(parents=True)
+def test_create_issue_replaces_current_capture_and_clears_stale_analysis(tmp_path: Path):
+    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
+    bfk = tmp_path / ".bfk"
+    for name in ["issue.md", "runner.py", "request.json", "response.json", "output.log", "root-cause.md", "fix.md"]:
+        (bfk / name).write_text("stale")
 
-    next_dir = next_iteration_dir(issue)
+    issue = create_issue(tmp_path, "new failure", ["account=2"])
 
-    assert next_dir == issue / "iterations" / "002"
-    assert next_dir.exists()
-    assert (issue / "iterations" / "001").exists()
+    assert issue == bfk
+    assert "new failure" in (bfk / "issue.md").read_text()
+    assert (bfk / "runner.py").exists()
+    assert not (bfk / "request.json").exists()
+    assert not (bfk / "response.json").exists()
+    assert not (bfk / "output.log").exists()
+    assert not (bfk / "root-cause.md").exists()
+    assert not (bfk / "fix.md").exists()
 
 
 def test_log_offsets_read_only_appended_content_and_truncation(tmp_path: Path):
@@ -248,18 +254,18 @@ def test_generated_runner_runs_directly_and_prints_json(tmp_path: Path):
     assert payload["json"]["account"] == "13900000000"
 
 
-def test_latest_issue_uses_last_sorted_issue(tmp_path: Path):
-    older = tmp_path / ".bfk" / "issues" / "20260625_120000_old"
-    newer = tmp_path / ".bfk" / "issues" / "20260625_130000_new"
-    older.mkdir(parents=True)
-    newer.mkdir(parents=True)
-    assert latest_issue(tmp_path) == newer
+def test_latest_issue_uses_current_capture_root(tmp_path: Path):
+    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
+    create_issue(tmp_path, "current")
+
+    assert latest_issue(tmp_path) == tmp_path / ".bfk"
 
 
-def test_next_iteration_dir_starts_at_001(tmp_path: Path):
-    issue = tmp_path / ".bfk" / "issues" / "20260625_120000_case"
-    issue.mkdir(parents=True)
-    assert next_iteration_dir(issue).name == "001"
+def test_next_iteration_dir_is_obsolete_for_single_capture(tmp_path: Path):
+    capture = tmp_path / ".bfk"
+    capture.mkdir()
+
+    assert next_iteration_dir(capture) == capture
 
 
 def test_load_runner_rejects_missing_or_malformed_build_request(tmp_path: Path):

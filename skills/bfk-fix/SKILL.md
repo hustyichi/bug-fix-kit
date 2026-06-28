@@ -5,22 +5,22 @@ description: "Apply the smallest code repair from a confirmed BFK root-cause.md 
 
 # Bug Fix Kit — Fix
 
-Use when the user invokes `$bfk-fix [issue_id]` after `$bfk-locate` has written a confirmed `root-cause.md`.
+Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed `.bfk/root-cause.md`.
 
 ## Boundary
 
-- Reads latest `root-cause.md` and related code files.
+- Reads `.bfk/root-cause.md` and related code files.
 - Refuses to edit when `root-cause.md` is `unknown`, `blocked`, missing, or lacks a confirmed code defect.
 - May modify local code only for a confirmed root cause with direct-chain evidence.
 - Makes the smallest root-cause fix; no unrelated refactors or public API changes unless required by the confirmed defect.
 - Does not guess fixes from incomplete, unknown, or blocked root-cause reports.
-- Writes `fix.md` in the current iteration.
+- Writes `.bfk/fix.md`.
 - Verifies only when reproducible capture context exists.
 - Does not claim verification for log-only cases or missing request context.
 
 ## Workflow
 
-1. Resolve the selected or latest issue and read `root-cause.md`.
+1. Read `.bfk/root-cause.md`.
 2. If status is `unknown` or `blocked`, refuse code edits and write `fix.md` with status `refused` or `blocked`.
 3. If status is not a confirmed code defect, refuse broad or guessed fixes.
 4. Apply the smallest code change that addresses the confirmed root cause.
