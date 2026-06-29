@@ -60,6 +60,14 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "does not guess" in fix
 
 
+def test_bfk_skills_default_to_chinese_output_unless_user_specifies_language():
+    for name in SKILLS:
+        text = skill_text(name).lower()
+        assert "default to chinese" in text
+        assert "explicitly asks for another language" in text
+        assert "quoted logs/errors" in text
+
+
 def test_old_skill_directories_are_removed():
     assert not (ROOT / "skills" / ("bfk-" + "init")).exists()
     assert not (ROOT / "skills" / ("bfk-" + "new")).exists()

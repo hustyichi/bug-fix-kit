@@ -34,3 +34,9 @@ Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed
 - `still_failed`: code changed, but rerun capture still fails.
 - `refused`: no confirmed code defect or root cause is `unknown`.
 - `blocked`: required files, service, logs, or permissions are unavailable.
+
+## Output language
+
+- Default to Chinese for `.bfk/fix.md` narrative descriptions and user-facing summaries.
+- If the user explicitly asks for another language, follow that language for the current task.
+- Preserve machine-readable field names/status values, file paths, code symbols, JSON keys, HTTP fields, and quoted logs/errors in their original form.

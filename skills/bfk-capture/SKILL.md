@@ -30,3 +30,9 @@ Use when the user invokes `$bfk-capture [key=value ...]` or wants one-stop captu
 5. Execute the runner through deterministic BFK mechanics.
 6. Capture the exact request, response, and new log output into `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
 7. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.
+
+## Output language
+
+- Default to Chinese for user-facing summaries and missing-evidence descriptions.
+- If the user explicitly asks for another language, follow that language for the current task.
+- Preserve machine-readable values, file paths, code symbols, JSON keys, HTTP fields, and quoted logs/errors in their original form.

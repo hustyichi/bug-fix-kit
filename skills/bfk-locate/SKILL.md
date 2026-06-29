@@ -36,3 +36,9 @@ Use when the user invokes `$bfk-locate`, or provides logs and issue context for 
 - `missing_evidence`
 - `recommended_fix`
 - `confidence`
+
+## Output language
+
+- Default to Chinese for `.bfk/root-cause.md` narrative descriptions and user-facing summaries.
+- If the user explicitly asks for another language, follow that language for the current task.
+- Preserve machine-readable field names/status values, file paths, code symbols, JSON keys, HTTP fields, and quoted logs/errors in their original form.

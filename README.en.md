@@ -92,6 +92,10 @@ Boundary: analyzes and writes the root-cause report only; it does not execute re
 
 Boundary: it does not guess fixes from `unknown` / `blocked` reports and does not claim verification it did not run.
 
+## Output Language
+
+User-facing BFK descriptions default to Chinese, including capture summaries, `root-cause.md`, and `fix.md`. If the user explicitly requests another language, follow that intent. Keep status values, field names, file paths, code symbols, JSON keys, HTTP fields, and quoted logs unchanged.
+
 ## MVP Boundaries
 
 - No runtime dependencies.

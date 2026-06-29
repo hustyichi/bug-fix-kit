@@ -118,6 +118,10 @@ BFK 当前使用本地文件日志。
 
 BFK 只保留一个当前 capture。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md` 和 `fix.md`。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`。
 
+## 输出语言
+
+BFK 生成给用户阅读的说明默认使用中文，包括 capture 摘要、`root-cause.md` 和 `fix.md` 中的描述。用户明确要求其他语言时，按用户意图输出；状态值、字段名、文件路径、代码符号、JSON key、HTTP 字段和日志原文保持原样。
+
 ## 常见问题
 
 ### `bfk` 命令里为什么没有 capture / locate / fix？
