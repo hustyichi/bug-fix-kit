@@ -51,14 +51,14 @@ curl --location 'http://127.0.0.1:8000/login' \
   --data '{"account":"13900000000","password":"bad"}'
 ```
 
-BFK 会把项目级配置保存到 `.bfk/PROJECT.md`，后面同一个项目可以复用。
+BFK 不保存项目级请求配置。每次切换接口或请求结构时，都要在本次 `$bfk-capture` 中提供新的 curl、base URL、日志文件等请求上下文。没有提供任何参数或新上下文时，`$bfk-capture` 会重放已有 `.bfk/runner.py`。
 
 ### 2. 采集一次复现证据
 
 在 Codex 中运行：
 
 ```text
-$bfk-capture "login failed" account=13900000000 password=bad
+$bfk-capture account=13900000000 password=bad
 ```
 
 `$bfk-capture` 会执行一次本地请求，并写入：
@@ -102,15 +102,13 @@ BFK 当前使用本地文件日志。
 - 如果同时有其他请求写日志，`output.log` 可能混入其他请求的日志。
 - 如果日志写到 Docker stdout、journalctl 或远程日志，需要先把相关日志落到本地文件，或直接用 `$bfk-locate --log ...`。
 
-更精确的做法是在应用日志里打印请求 ID。BFK 生成的请求会带上 `X-BugFix-Issue` header，你也可以让服务把类似 request id / capture id 写进日志，定位时会更稳。
+更精确的做法是在应用日志里打印请求 ID。如果你的服务支持 request id / capture id，可以在本次请求上下文里带上对应 header，定位时会更稳。
 
 ## `.bfk/` 里有什么
 
 ```text
 .bfk/
-├── PROJECT.md       # 本地服务、日志、请求样例等项目配置
-├── issue.md         # 当前问题描述和参数
-├── runner.py        # 当前问题的请求构造脚本
+├── runner.py        # 当前 capture 的请求构造脚本
 ├── request.json     # 本次实际请求
 ├── response.json    # 本次响应
 ├── output.log       # 本次执行窗口内新增日志
@@ -118,7 +116,7 @@ BFK 当前使用本地文件日志。
 └── fix.md           # fix 生成的修复记录
 ```
 
-BFK 只保留一个当前问题。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md` 和 `fix.md`。
+BFK 只保留一个当前 capture。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md` 和 `fix.md`。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`。
 
 ## 常见问题
 
@@ -148,7 +146,7 @@ $bfk-fix
 
 先检查三件事：
 
-- `.bfk/PROJECT.md` 里的日志路径是否正确。
+- 本次 `$bfk-capture` 提供的日志路径是否正确。
 - 本地服务是否真的把日志写入文件。
 - 请求完成后日志是否异步延迟写入。
 

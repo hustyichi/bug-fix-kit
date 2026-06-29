@@ -9,13 +9,12 @@ import pytest
 from bug_fix_kit.mechanics import (
     BfkError,
     capture_offsets,
-    create_issue,
+    create_capture,
     execute_request,
-    latest_issue,
+    latest_capture,
     load_runner_request,
     next_iteration_dir,
     read_since_offsets,
-    write_project,
     write_run_artifacts,
 )
 
@@ -75,79 +74,54 @@ def responses_project_merge_curl() -> str:
     )
 
 
-def test_write_project_creates_project_knowledge(tmp_path: Path):
-    project = write_project(
+def test_create_capture_scaffolds_current_capture_without_persistent_context(tmp_path: Path):
+    capture = create_capture(
         tmp_path,
+        ["account=13900000000", "freeform"],
         base_url="http://localhost:8000",
         log_files=["logs/app.log"],
         default_headers={"Content-Type": "application/json"},
-        auth_note="LOCAL_AUTH_TOKEN",
     )
 
-    text = project.read_text()
-    assert project == tmp_path / ".bfk" / "PROJECT.md"
-    assert "http://localhost:8000" in text
-    assert "logs/app.log" in text
-    assert "LOCAL_AUTH_TOKEN" in text
-    assert "## Fix Principles" not in text
-    assert "Diagnose before fixing." not in text
-
-
-def test_write_project_preserves_request_contract_with_local_auth(tmp_path: Path):
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "api.py").write_text(
-        "@router.post('/v1/responses')\nclass CreateResponseRequest: ...\njson.loads(user_text)\n"
-    )
-
-    project = write_project(
-        tmp_path,
-        base_url="http://127.0.0.1:8000",
-        log_files=["logs/app.log"],
-        request_sample=responses_project_merge_curl(),
-        request_name="project-merge-file",
-    )
-
-    text = project.read_text()
-    assert "## Request Sample: project-merge-file" in text
-    assert "sk-secret" in text
-    assert "Bearer ${LITELLM_API_KEY}" not in text
-    assert "- Endpoint: POST /v1/responses" in text
-    assert "## Parameter Contract" not in text
-    assert "## Repository Evidence" not in text
-
-
-def test_create_issue_scaffolds_current_capture_at_bfk_root(tmp_path: Path):
-    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
-
-    issue = create_issue(tmp_path, "login failed", ["account=13900000000", "freeform"])
-
-    assert issue == tmp_path / ".bfk"
-    assert (issue / "issue.md").exists()
-    issue_text = (issue / "issue.md").read_text()
-    assert "Capture evidence, locate root cause, and fix minimally." in issue_text
-    assert "diagnose from logs" not in issue_text
-    runner = issue / "runner.py"
+    assert capture == tmp_path / ".bfk"
+    assert not (capture / "PROJECT.md").exists()
+    assert not (capture / "issue.md").exists()
+    runner = capture / "runner.py"
     assert runner.exists()
-    assert latest_issue(tmp_path) == issue
+    assert latest_capture(tmp_path) == capture
 
     request = load_runner_request(runner)
     assert request["method"] == "POST"
     assert request["url"].startswith("http://localhost:8000")
     assert request["headers"]["Content-Type"] == "application/json"
+    assert "X-BugFix-Issue" not in request["headers"]
     assert request["json"]["account"] == "13900000000"
 
 
-def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_path: Path):
-    write_project(
+def test_create_capture_preserves_request_contract_with_local_auth(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text(
+        "@router.post('/v1/responses')\nclass CreateResponseRequest: ...\njson.loads(user_text)\n"
+    )
+
+    capture = create_capture(
         tmp_path,
-        base_url="http://localhost:8000",
+        ["task_id=new-task"],
+        base_url="http://127.0.0.1:8000",
         log_files=["logs/app.log"],
         request_sample=responses_project_merge_curl(),
     )
 
-    issue = create_issue(
+    request = load_runner_request(capture / "runner.py")
+    assert request["url"] == "http://127.0.0.1:8000/v1/responses"
+    assert request["headers"]["x-litellm-api-key"] == "Bearer sk-secret"
+    assert not (capture / "PROJECT.md").exists()
+    assert not (capture / "issue.md").exists()
+
+
+def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_path: Path):
+    capture = create_capture(
         tmp_path,
-        "merge failed",
         [
             "task_id=new-task",
             "merge_code=MER-new",
@@ -155,9 +129,12 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
             "code=LGI-new",
             "stream=true",
         ],
+        base_url="http://localhost:8000",
+        log_files=["logs/app.log"],
+        request_sample=responses_project_merge_curl(),
     )
 
-    request = load_runner_request(issue / "runner.py")
+    request = load_runner_request(capture / "runner.py")
     body = request["json"]
     inner = json.loads(body["input"][0]["content"][0]["text"])
 
@@ -174,16 +151,17 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
     assert inner["params"]["target"]["code"] == "LGI-new"
 
 
-def test_create_issue_replaces_current_capture_and_clears_stale_analysis(tmp_path: Path):
-    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
+def test_create_capture_replaces_current_capture_and_clears_stale_state(tmp_path: Path):
     bfk = tmp_path / ".bfk"
-    for name in ["issue.md", "runner.py", "request.json", "response.json", "output.log", "root-cause.md", "fix.md"]:
+    bfk.mkdir()
+    for name in ["PROJECT.md", "issue.md", "runner.py", "request.json", "response.json", "output.log", "root-cause.md", "fix.md"]:
         (bfk / name).write_text("stale")
 
-    issue = create_issue(tmp_path, "new failure", ["account=2"])
+    capture = create_capture(tmp_path, ["account=2"], base_url="http://localhost:8000", log_files=["logs/app.log"])
 
-    assert issue == bfk
-    assert "new failure" in (bfk / "issue.md").read_text()
+    assert capture == bfk
+    assert not (bfk / "PROJECT.md").exists()
+    assert not (bfk / "issue.md").exists()
     assert (bfk / "runner.py").exists()
     assert not (bfk / "request.json").exists()
     assert not (bfk / "response.json").exists()
@@ -230,20 +208,19 @@ def test_execute_request_normalizes_transport_errors(monkeypatch: pytest.MonkeyP
     assert "connection refused" in response["transport_error"]["message"]
 
 
-def test_latest_issue_requires_existing_issue(tmp_path: Path):
+def test_latest_capture_requires_existing_runner(tmp_path: Path):
     with pytest.raises(BfkError, match=r"Run \$bfk-capture first"):
-        latest_issue(tmp_path)
+        latest_capture(tmp_path)
 
 
 def test_generated_runner_runs_directly_and_prints_json(tmp_path: Path):
     import subprocess
     import sys
 
-    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
-    issue = create_issue(tmp_path, "login_failed", ["account=13900000000"])
+    capture = create_capture(tmp_path, ["account=13900000000"], base_url="http://localhost:8000", log_files=["logs/app.log"])
 
     result = subprocess.run(
-        [sys.executable, str(issue / "runner.py")],
+        [sys.executable, str(capture / "runner.py")],
         text=True,
         capture_output=True,
         check=False,
@@ -254,11 +231,27 @@ def test_generated_runner_runs_directly_and_prints_json(tmp_path: Path):
     assert payload["json"]["account"] == "13900000000"
 
 
-def test_latest_issue_uses_current_capture_root(tmp_path: Path):
-    write_project(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
-    create_issue(tmp_path, "current")
+def test_latest_capture_uses_current_capture_root(tmp_path: Path):
+    create_capture(tmp_path, base_url="http://localhost:8000", log_files=["logs/app.log"])
 
-    assert latest_issue(tmp_path) == tmp_path / ".bfk"
+    assert latest_capture(tmp_path) == tmp_path / ".bfk"
+
+
+def test_empty_capture_replays_existing_runner_without_new_context(tmp_path: Path):
+    first = create_capture(tmp_path, ["account=1"], base_url="http://localhost:8000", log_files=["logs/app.log"])
+    before = (first / "runner.py").read_text()
+
+    replay = create_capture(tmp_path)
+
+    assert replay == first
+    assert (replay / "runner.py").read_text() == before
+
+
+def test_capture_with_params_requires_new_request_context(tmp_path: Path):
+    create_capture(tmp_path, ["account=1"], base_url="http://localhost:8000", log_files=["logs/app.log"])
+
+    with pytest.raises(BfkError, match="request context"):
+        create_capture(tmp_path, ["account=2"])
 
 
 def test_next_iteration_dir_is_obsolete_for_single_capture(tmp_path: Path):
@@ -335,16 +328,16 @@ def test_log_truncation_is_explicit(tmp_path: Path):
 
 
 def test_project_headers_are_preserved_in_generated_runner(tmp_path: Path):
-    write_project(
+    capture = create_capture(
         tmp_path,
+        ["account=1"],
         base_url="http://localhost:8000",
         log_files=["logs/app.log"],
         default_headers={"Content-Type": "application/json", "Authorization": "Bearer devtoken"},
     )
 
-    issue = create_issue(tmp_path, "auth_bug", ["account=1"])
-    request = load_runner_request(issue / "runner.py")
+    request = load_runner_request(capture / "runner.py")
 
     assert request["headers"]["Authorization"] == "Bearer devtoken"
     assert request["headers"]["Content-Type"] == "application/json"
-    assert request["headers"]["X-BugFix-Issue"] == "auth_bug"
+    assert "X-BugFix-Issue" not in request["headers"]

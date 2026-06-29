@@ -1,17 +1,19 @@
 ---
 name: bfk-capture
-description: "One-stop Bug Fix Kit capture: create/reuse the current local capture, execute the request, and write request/response/log artifacts."
+description: "One-stop Bug Fix Kit capture: create an independent request capture or replay the current runner, then write request/response/log artifacts."
 ---
 
 # Bug Fix Kit — Capture
 
-Use when the user invokes `$bfk-capture "<issue>" [key=value ...]` or wants one-stop capture of reproducible evidence for a local bug.
+Use when the user invokes `$bfk-capture [key=value ...]` or wants one-stop capture of reproducible evidence for a local bug.
 
 ## Boundary
 
-- Creates or reuses only the local BFK project state needed to replay the current issue.
-- May create or update `.bfk/PROJECT.md`, `.bfk/issue.md`, and `.bfk/runner.py` when they are missing.
-- Replaces the current single capture at `.bfk/`; Bug Fix Kit does not track multiple active issues.
+- Creates a new independent capture only from the current request context: curl sample, base URL, endpoint, headers/body, log files, and supplied params.
+- Does not create or reuse `.bfk/PROJECT.md` or `.bfk/issue.md`.
+- Replaces the current single capture at `.bfk/`; Bug Fix Kit does not track multiple active captures.
+- When invoked with no params and no new request context, replays the existing `.bfk/runner.py`.
+- When params or partial context are provided but the request cannot be built, asks for the missing request context instead of reusing old state.
 - Executes the selected local request once.
 - Writes `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
 - Deletes stale `.bfk/root-cause.md` and `.bfk/fix.md` before writing the new capture.
@@ -21,9 +23,10 @@ Use when the user invokes `$bfk-capture "<issue>" [key=value ...]` or wants one-
 
 ## Workflow
 
-1. Resolve existing `.bfk/PROJECT.md` knowledge or create the minimum project knowledge from the issue, request sample, base URL, headers, log files, and supplied params.
-2. Replace the current capture files under `.bfk/`, preserving `.bfk/PROJECT.md`.
-3. Generate the smallest `.bfk/runner.py` from the saved request sample or request parameters.
-4. Execute the runner through deterministic BFK mechanics.
-5. Capture the exact request, response, and new log output into `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
-6. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.
+1. If the user provided no params and no new request context, load existing `.bfk/runner.py` for replay; if it is missing, ask for a reproducible request.
+2. If the user provided params or new context, build a new independent capture from the current request context only.
+3. Replace the current capture files under `.bfk/`.
+4. Generate the smallest `.bfk/runner.py` from the current request sample or request parameters.
+5. Execute the runner through deterministic BFK mechanics.
+6. Capture the exact request, response, and new log output into `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
+7. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.

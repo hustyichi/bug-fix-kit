@@ -45,7 +45,7 @@ The helper CLI is only for plugin installation and shell checks. Bug handling is
 ## Codex Workflow
 
 ```text
-$bfk-capture "<issue_name>" <key=value ...>
+$bfk-capture <key=value ...>
 $bfk-locate
 $bfk-fix
 ```
@@ -60,8 +60,6 @@ The current bug evidence lives directly under `.bfk/`:
 
 ```text
 .bfk/
-├── PROJECT.md
-├── issue.md
 ├── runner.py
 ├── request.json
 ├── response.json
@@ -74,7 +72,9 @@ The current bug evidence lives directly under `.bfk/`:
 
 ### Capture
 
-`$bfk-capture` is the one-stop evidence entrypoint. From project knowledge, request samples, and request params, it replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
+`$bfk-capture` is the one-stop evidence entrypoint. From the current request context, request sample, and request params, it replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
+
+Bug Fix Kit does not keep reusable project-level request config. If the request interface or body shape changes, provide the new curl sample, base URL, headers/body, and log files in that capture. Invoking `$bfk-capture` with no params and no new context replays the existing `.bfk/runner.py`.
 
 Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture clears stale `root-cause.md` and `fix.md`.
 

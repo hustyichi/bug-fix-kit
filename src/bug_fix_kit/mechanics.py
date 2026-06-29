@@ -43,7 +43,7 @@ class ParameterMapping:
 
 
 @dataclass(frozen=True)
-class ProjectConfig:
+class CaptureContext:
     base_url: str
     log_files: list[str]
     headers: dict[str, str]
@@ -54,37 +54,37 @@ class ProjectConfig:
     parameter_mappings: list[ParameterMapping]
 
 
-def slugify_issue_name(name: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9]+", "_", name.strip().lower()).strip("_")
-    return slug or "issue"
-
-
 def bfk_root(root: Path) -> Path:
     return root / ".bfk"
 
 
-def write_project(
-    root: Path,
+def _origin_from_sample(sample: ParsedRequestSample | None) -> str:
+    if sample is None:
+        return ""
+    parsed = urlparse(sample.url)
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _capture_context_from_input(
     *,
-    base_url: str,
-    log_files: list[str],
+    base_url: str = "",
+    log_files: list[str] | None = None,
     default_headers: dict[str, str] | None = None,
-    auth_note: str = "",
     request_sample: str = "",
-    request_name: str = "default",
     endpoint: str = "",
-    timeout_seconds: int | float = 120,
     after_request_wait_seconds: int | float = 2,
-    repository_evidence: list[str] | None = None,
-) -> Path:
-    path = bfk_root(root) / "PROJECT.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
+) -> CaptureContext:
     parsed_sample: ParsedRequestSample | None = None
-    validation_notes: list[str] = []
-    try:
-        parsed_sample = parse_request_sample(request_sample) if request_sample.strip() else None
-    except BfkError as exc:
-        validation_notes.append(f"Request sample parse warning: {exc}")
+    if request_sample.strip():
+        parsed_sample = parse_request_sample(request_sample)
+
+    resolved_base_url = base_url or _origin_from_sample(parsed_sample)
+    if not resolved_base_url:
+        raise BfkError("Missing request context: provide a curl sample or base URL.")
+    if not log_files:
+        raise BfkError("Missing request context: provide at least one local log file.")
 
     sample_headers = parsed_sample.headers if parsed_sample else {}
     headers = sample_headers or {"Content-Type": "application/json"}
@@ -92,62 +92,17 @@ def write_project(
         headers.update(default_headers)
 
     endpoint_method, endpoint_path = _resolve_endpoint(endpoint, parsed_sample)
-    lines = [
-        "# Bug Fix Kit Project Knowledge",
-        "",
-        "## Local Service",
-        f"- Base URL: {base_url}",
-        f"- Endpoint: {endpoint_method} {endpoint_path}",
-        f"- Timeout seconds: {_format_number(timeout_seconds)}",
-        f"- After request wait seconds: {_format_number(after_request_wait_seconds)}",
-        "- Service should be started manually before running bfk.",
-        "",
-        "## Logs",
-        *[f"- {log_file}" for log_file in log_files],
-        "",
-        "## Log Capture",
-        "Default strategy: file offset",
-        "",
-        "## Request Defaults",
-        *[f"- {key}: {value}" for key, value in headers.items()],
-    ]
-    if auth_note:
-        lines += ["", "## Auth", f"- {auth_note}"]
-    if request_sample.strip():
-        lines += [
-            "",
-            f"## Request Sample: {request_name or 'default'}",
-            "",
-            "```bash",
-            request_sample.strip(),
-            "```",
-        ]
-    path.write_text("\n".join(lines) + "\n")
-    return path
-
-
-def _section_body(text: str, heading: str) -> str:
-    match = re.search(rf"^## {re.escape(heading)}\n(?P<body>.*?)(?=^## |\Z)", text, flags=re.MULTILINE | re.DOTALL)
-    return match.group("body") if match else ""
-
-
-def _format_number(value: int | float) -> str:
-    number = float(value)
-    return str(int(number)) if number.is_integer() else str(number)
-
-
-def _parse_float(value: str | None, *, default: float) -> float:
-    if not value:
-        return default
-    try:
-        return float(value)
-    except ValueError:
-        return default
-
-
-def _project_bullet_value(text: str, key: str) -> str:
-    match = re.search(rf"^-\s+{re.escape(key)}:\s*(.+?)\s*$", text, flags=re.MULTILINE)
-    return match.group(1).strip() if match else ""
+    mappings = _parameter_mappings_from_sample(parsed_sample)
+    return CaptureContext(
+        base_url=resolved_base_url,
+        log_files=log_files,
+        headers=headers,
+        endpoint_method=endpoint_method,
+        endpoint_path=endpoint_path,
+        after_request_wait_seconds=float(after_request_wait_seconds),
+        request_sample=parsed_sample,
+        parameter_mappings=mappings,
+    )
 
 
 def _parse_endpoint_text(endpoint: str) -> tuple[str, str]:
@@ -429,150 +384,6 @@ def _parameter_mappings_from_sample(sample: ParsedRequestSample | None) -> list[
     return mappings
 
 
-def _escape_table_cell(value: str) -> str:
-    return value.replace("|", "\\|").replace("\n", " ")
-
-
-def _mapping_table_row(mapping: ParameterMapping) -> str:
-    return (
-        f"| {_escape_table_cell(mapping.name)} "
-        f"| {_escape_table_cell(', '.join(mapping.locations))} "
-        f"| {'yes' if mapping.required else 'no'} "
-        f"| {_escape_table_cell(mapping.default)} "
-        f"| {_escape_table_cell(mapping.source)} |"
-    )
-
-
-def _read_request_sample_from_project(text: str) -> str:
-    match = re.search(
-        r"^## Request Sample:[^\n]*\n+```(?:bash|sh)?\n(?P<body>.*?)\n```",
-        text,
-        flags=re.MULTILINE | re.DOTALL,
-    )
-    return match.group("body").strip() if match else ""
-
-
-def _read_parameter_mappings(text: str) -> list[ParameterMapping]:
-    body = _section_body(text, "Parameter Contract")
-    mappings: list[ParameterMapping] = []
-    for line in body.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|") or "---" in stripped or "Name" in stripped:
-            continue
-        cells = [cell.strip().replace("\\|", "|") for cell in stripped.strip("|").split("|")]
-        if len(cells) < 5:
-            continue
-        name, location, required, default, source = cells[:5]
-        mappings.append(
-            ParameterMapping(
-                name=name,
-                locations=[item.strip() for item in location.split(",") if item.strip()],
-                required=required.lower() == "yes",
-                default=default,
-                source=source,
-            )
-        )
-    return mappings
-
-
-def _iter_evidence_files(root: Path) -> list[Path]:
-    ignored_dirs = {".git", ".bfk", ".venv", "venv", "__pycache__", "node_modules", "dist", "build"}
-    allowed_suffixes = {".py", ".md", ".sh", ".json", ".yaml", ".yml", ".toml", ".txt"}
-    files: list[Path] = []
-    for path in root.rglob("*"):
-        if any(part in ignored_dirs for part in path.parts):
-            continue
-        if path.is_file() and (path.suffix in allowed_suffixes or path.name in {"AGENTS.md", "README"}):
-            files.append(path)
-    return files
-
-
-def _infer_repository_evidence(
-    root: Path,
-    sample: ParsedRequestSample | None,
-    mappings: list[ParameterMapping],
-    *,
-    limit: int = 8,
-) -> list[str]:
-    if sample is None:
-        return []
-    targets: list[tuple[str, str]] = []
-    if sample.path:
-        targets.append(("endpoint", sample.path))
-    if isinstance(sample.body, dict) and sample.body.get("model"):
-        targets.append(("model", str(sample.body["model"])))
-    if sample.inner_payload and sample.inner_payload.get("action"):
-        targets.append(("action", str(sample.inner_payload["action"])))
-    for name in ("task_id", "merge_code", "merge_type"):
-        if any(mapping.name == name for mapping in mappings):
-            targets.append(("field", name))
-    targets += [("request model", "CreateResponseRequest"), ("inner parsing", "json.loads")]
-
-    evidence: list[str] = []
-    seen: set[tuple[str, str]] = set()
-    for file in _iter_evidence_files(root):
-        try:
-            lines = file.read_text(errors="ignore").splitlines()
-        except OSError:
-            continue
-        rel = file.relative_to(root)
-        for line_number, line in enumerate(lines, start=1):
-            for label, target in targets:
-                if target and target in line:
-                    key = (label, target)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    evidence.append(f"{label}: {rel}:{line_number} contains `{target}`")
-                    if len(evidence) >= limit:
-                        return evidence
-    return evidence
-
-
-def _read_project_config(root: Path) -> ProjectConfig:
-    project = bfk_root(root) / "PROJECT.md"
-    if not project.exists():
-        raise BfkError("Missing .bfk/PROJECT.md. Run $bfk-capture with project/request context first.")
-    text = project.read_text()
-    base_match = re.search(r"Base URL:\s*(\S+)", text)
-    if not base_match:
-        raise BfkError(".bfk/PROJECT.md is missing Base URL. Run $bfk-capture with service context again.")
-
-    logs = re.findall(r"^-\s+(.+\.log)\s*$", _section_body(text, "Logs"), flags=re.MULTILINE)
-    header_lines = re.findall(r"^-\s+([^:]+):\s*(.*)\s*$", _section_body(text, "Request Defaults"), flags=re.MULTILINE)
-    headers = {key.strip(): value.strip() for key, value in header_lines}
-    endpoint = _project_bullet_value(text, "Endpoint") or _project_bullet_value(text, "Primary endpoint")
-    method, endpoint_path = _parse_endpoint_text(endpoint)
-    wait = _parse_float(_project_bullet_value(text, "After request wait seconds"), default=2)
-
-    request_sample = _read_request_sample_from_project(text)
-    parsed_sample = None
-    if request_sample:
-        parsed_sample = parse_request_sample(request_sample)
-        if endpoint_path == "/":
-            method, endpoint_path = _resolve_endpoint("", parsed_sample)
-
-    mappings = _read_parameter_mappings(text)
-    if parsed_sample and not mappings:
-        mappings = _parameter_mappings_from_sample(parsed_sample)
-
-    return ProjectConfig(
-        base_url=base_match.group(1),
-        log_files=logs or ["logs/app.log"],
-        headers=headers or {"Content-Type": "application/json"},
-        endpoint_method=method,
-        endpoint_path=endpoint_path,
-        after_request_wait_seconds=wait,
-        request_sample=parsed_sample,
-        parameter_mappings=mappings,
-    )
-
-
-def _read_project_defaults(root: Path) -> tuple[str, list[str], dict[str, str]]:
-    config = _read_project_config(root)
-    return config.base_url, config.log_files, config.headers
-
-
 def _parse_params(raw_params: list[str]) -> dict[str, str]:
     params: dict[str, str] = {}
     positional: list[str] = []
@@ -587,13 +398,54 @@ def _parse_params(raw_params: list[str]) -> dict[str, str]:
     return params
 
 
-def create_issue(root: Path, issue_name: str, raw_params: list[str] | None = None) -> Path:
+def _has_capture_context(
+    *,
+    base_url: str,
+    log_files: list[str] | None,
+    default_headers: dict[str, str] | None,
+    request_sample: str,
+    endpoint: str,
+) -> bool:
+    return bool(base_url or log_files or default_headers or request_sample.strip() or endpoint)
+
+
+def create_capture(
+    root: Path,
+    raw_params: list[str] | None = None,
+    *,
+    base_url: str = "",
+    log_files: list[str] | None = None,
+    default_headers: dict[str, str] | None = None,
+    request_sample: str = "",
+    endpoint: str = "",
+    after_request_wait_seconds: int | float = 2,
+) -> Path:
     raw_params = raw_params or []
+    has_context = _has_capture_context(
+        base_url=base_url,
+        log_files=log_files,
+        default_headers=default_headers,
+        request_sample=request_sample,
+        endpoint=endpoint,
+    )
+    if not has_context:
+        if raw_params:
+            raise BfkError("Missing request context: provide a curl sample or base URL, endpoint, headers/body, and log file.")
+        return latest_capture(root)
+
     params = _parse_params(raw_params)
-    config = _read_project_config(root)
+    config = _capture_context_from_input(
+        base_url=base_url,
+        log_files=log_files,
+        default_headers=default_headers,
+        request_sample=request_sample,
+        endpoint=endpoint,
+        after_request_wait_seconds=after_request_wait_seconds,
+    )
     issue_dir = bfk_root(root)
     issue_dir.mkdir(parents=True, exist_ok=True)
     for name in (
+        "PROJECT.md",
         "issue.md",
         "runner.py",
         "request.json",
@@ -605,35 +457,17 @@ def create_issue(root: Path, issue_name: str, raw_params: list[str] | None = Non
     ):
         (issue_dir / name).unlink(missing_ok=True)
 
-    (issue_dir / "issue.md").write_text(
-        "\n".join(
-            [
-                f"# Issue: {issue_name}",
-                "",
-                "## User Input",
-                " ".join(raw_params),
-                "",
-                "## Parsed Parameters",
-                *[f"- {key}: {value}" for key, value in params.items()],
-                "",
-                "## Expected Goal",
-                "Capture evidence, locate root cause, and fix minimally.",
-            ]
-        )
-        + "\n"
-    )
     if config.request_sample:
-        runner = _request_contract_runner_template(issue_name, params, config)
+        runner = _request_contract_runner_template(params, config)
     else:
-        runner = _runner_template(issue_name, params, config)
+        runner = _runner_template(params, config)
     (issue_dir / "runner.py").write_text(runner)
     return issue_dir
 
 
 def _runner_template(
-    issue_name: str,
     params: dict[str, str],
-    config: ProjectConfig,
+    config: CaptureContext,
 ) -> str:
     base_url = config.base_url
     log_files = config.log_files
@@ -644,7 +478,6 @@ def _runner_template(
 
 import json
 
-ISSUE_NAME = {issue_name!r}
 PARAMS = {json.dumps(params, ensure_ascii=False, indent=2)}
 BASE_URL = {base_url!r}
 REQUEST_METHOD = {method!r}
@@ -656,7 +489,6 @@ AFTER_REQUEST_WAIT_SECONDS = {config.after_request_wait_seconds!r}
 
 def build_request(params: dict) -> dict:
     headers = dict(DEFAULT_HEADERS)
-    headers["X-BugFix-Issue"] = ISSUE_NAME
     return {{
         "method": REQUEST_METHOD,
         "url": f"{{BASE_URL.rstrip('/')}}{{REQUEST_PATH}}",
@@ -670,7 +502,7 @@ if __name__ == "__main__":
 '''
 
 
-def _request_contract_runner_template(issue_name: str, params: dict[str, str], config: ProjectConfig) -> str:
+def _request_contract_runner_template(params: dict[str, str], config: CaptureContext) -> str:
     assert config.request_sample is not None
     sample = config.request_sample
     request_template = {
@@ -691,7 +523,6 @@ import json
 import os
 import re
 
-ISSUE_NAME = {issue_name!r}
 PARAMS = {json.dumps(params, ensure_ascii=False, indent=2)}
 BASE_URL = {config.base_url!r}
 LOG_FILES = {json.dumps(config.log_files, ensure_ascii=False, indent=2)}
@@ -799,7 +630,6 @@ def build_request(params: dict) -> dict:
     template = copy.deepcopy(REQUEST_TEMPLATE)
     body = _apply_parameter_locations(template.get("json") or {{}}, params)
     headers = _expand_headers(template.get("headers") or {{}})
-    headers["X-BugFix-Issue"] = ISSUE_NAME
     return {{
         "method": template.get("method", "POST"),
         "url": f"{{BASE_URL.rstrip('/')}}{{template.get('path', '/')}}",
@@ -813,9 +643,9 @@ if __name__ == "__main__":
 '''
 
 
-def latest_issue(root: Path) -> Path:
+def latest_capture(root: Path) -> Path:
     path = bfk_root(root)
-    if not (path / "issue.md").exists() and not (path / "runner.py").exists():
+    if not (path / "runner.py").exists():
         raise BfkError("No bfk capture found. Run $bfk-capture first.")
     return path
 
