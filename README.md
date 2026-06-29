@@ -87,7 +87,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 $bfk-fix
 ```
 
-`$bfk-fix` 只在 `root-cause.md` 已经确认代码缺陷时修改代码。能复用 capture 验证时会重新跑请求；不能验证时会在 `.bfk/fix.md` 里写清楚。
+`$bfk-fix` 只在 `root-cause.md` 已经确认代码缺陷时修改代码。能复用 capture 验证时会重新跑请求，并把本次回归新增日志写入 `.bfk/fix_output.log`，不会覆盖原始异常日志 `.bfk/output.log`；不能验证时会在 `.bfk/fix.md` 里写清楚。
 
 ## 日志怎么获取
 
@@ -113,10 +113,11 @@ BFK 当前使用本地文件日志。
 ├── response.json    # 本次响应
 ├── output.log       # 本次执行窗口内新增日志
 ├── root-cause.md    # locate 生成的根因报告
-└── fix.md           # fix 生成的修复记录
+├── fix.md           # fix 生成的修复记录
+└── fix_output.log   # fix 回归验证期间新增日志
 ```
 
-BFK 只保留一个当前 capture。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md` 和 `fix.md`。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`。
+BFK 只保留一个当前 capture。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md`、`fix.md` 和 `fix_output.log`。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`。
 
 ## 输出语言
 

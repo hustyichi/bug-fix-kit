@@ -67,17 +67,18 @@ $bfk-locate --log logs/error.log --issue "login failed"
 ├── response.json
 ├── output.log
 ├── root-cause.md
-└── fix.md
+├── fix.md
+└── fix_output.log
 ```
 
 规则：
 
 - `.bfk/runner.py` 是当前 capture 的请求构造脚本。
 - 每次 capture 覆盖 `.bfk/` 顶层当前 capture 产物。
-- 新 capture 会删除旧的 `request.json`、`response.json`、`output.log`、`runner.py`、`root-cause.md`、`fix.md`，也会清理旧版遗留的 `PROJECT.md` 和 `issue.md`。
+- 新 capture 会删除旧的 `request.json`、`response.json`、`output.log`、`fix_output.log`、`runner.py`、`root-cause.md`、`fix.md`，也会清理旧版遗留的 `PROJECT.md` 和 `issue.md`。
 - `request.json`、`response.json`、`output.log` 由 `$bfk-capture` 写入。
 - `root-cause.md` 由 `$bfk-locate` 写入。
-- `fix.md` 由 `$bfk-fix` 写入。
+- `fix.md` 由 `$bfk-fix` 写入；可复现回归验证时，`fix_output.log` 由 `$bfk-fix` 写入。
 - 日志直接定位场景可以没有 `runner.py`、`request.json` 或 `response.json`，但报告必须写明缺失证据。
 
 ## 5. `$bfk-capture`
@@ -141,7 +142,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 1. 读取最新 `root-cause.md`。
 2. 若状态为 `unknown`、`blocked`、缺失根因或不是代码缺陷，则拒绝编辑。
 3. 若根因明确，执行最小修复。
-4. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证。
+4. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证，将回归新增日志写入 `.bfk/fix_output.log`，不覆盖 `.bfk/output.log`。
 5. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
 
 最终状态：

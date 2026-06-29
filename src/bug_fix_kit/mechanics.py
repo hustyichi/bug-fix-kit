@@ -451,6 +451,7 @@ def create_capture(
         "request.json",
         "response.json",
         "output.log",
+        "fix_output.log",
         "capture.md",
         "root-cause.md",
         "fix.md",
@@ -758,8 +759,17 @@ def execute_request(request: dict[str, Any], timeout: int | float = 30) -> dict[
         }
 
 
-def write_run_artifacts(iteration_dir: Path, request: dict[str, Any], response: dict[str, Any], logs: str) -> None:
+def write_run_artifacts(
+    iteration_dir: Path,
+    request: dict[str, Any],
+    response: dict[str, Any],
+    logs: str,
+    *,
+    output_log_name: str = "output.log",
+) -> None:
+    if Path(output_log_name).name != output_log_name:
+        raise BfkError("output_log_name must be a file name")
     iteration_dir.mkdir(parents=True, exist_ok=True)
     (iteration_dir / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False, default=str) + "\n")
     (iteration_dir / "response.json").write_text(json.dumps(response, indent=2, ensure_ascii=False, default=str) + "\n")
-    (iteration_dir / "output.log").write_text(logs)
+    (iteration_dir / output_log_name).write_text(logs)

@@ -53,6 +53,7 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "root-cause.md" in fix
     assert "confirmed root cause" in fix
     assert "fix.md" in fix
+    assert "fix_output.log" in fix
     assert "changed_unverified" in fix
     assert "fixed_verified" in fix
     assert "unknown" in fix

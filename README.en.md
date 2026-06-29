@@ -65,7 +65,8 @@ The current bug evidence lives directly under `.bfk/`:
 ├── response.json
 ├── output.log
 ├── root-cause.md
-└── fix.md
+├── fix.md
+└── fix_output.log
 ```
 
 ## Mechanics
@@ -76,7 +77,7 @@ The current bug evidence lives directly under `.bfk/`:
 
 Bug Fix Kit does not keep reusable project-level request config. If the request interface or body shape changes, provide the new curl sample, base URL, headers/body, and log files in that capture. Invoking `$bfk-capture` with no params and no new context replays the existing `.bfk/runner.py`.
 
-Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture clears stale `root-cause.md` and `fix.md`.
+Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture clears stale `root-cause.md`, `fix.md`, and `fix_output.log`.
 
 ### Locate
 
@@ -88,7 +89,7 @@ Boundary: analyzes and writes the root-cause report only; it does not execute re
 
 ### Fix
 
-`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the current request under `.bfk/` for verification. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
+`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the current request under `.bfk/` for verification, write the verification log to `.bfk/fix_output.log`, and leave the original failure log `.bfk/output.log` intact. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
 
 Boundary: it does not guess fixes from `unknown` / `blocked` reports and does not claim verification it did not run.
 

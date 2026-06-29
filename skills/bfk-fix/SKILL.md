@@ -15,6 +15,7 @@ Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed
 - Makes the smallest root-cause fix; no unrelated refactors or public API changes unless required by the confirmed defect.
 - Does not guess fixes from incomplete, unknown, or blocked root-cause reports.
 - Writes `.bfk/fix.md`.
+- When verification reruns the current capture, writes the new verification log to `.bfk/fix_output.log` and must not overwrite `.bfk/output.log`.
 - Verifies only when reproducible capture context exists.
 - Does not claim verification for log-only cases or missing request context.
 
@@ -24,7 +25,7 @@ Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed
 2. If status is `unknown` or `blocked`, refuse code edits and write `fix.md` with status `refused` or `blocked`.
 3. If status is not a confirmed code defect, refuse broad or guessed fixes.
 4. Apply the smallest code change that addresses the confirmed root cause.
-5. If `request.json`, `runner.py`, and required local service/log context exist, rerun the same capture path and inspect the result.
+5. If `request.json`, `runner.py`, and required local service/log context exist, rerun the same capture path, write the newly captured verification log to `.bfk/fix_output.log`, and inspect the result.
 6. Write `fix.md` with root cause used, changed files, verification evidence, risk, and next action.
 
 ## Final statuses

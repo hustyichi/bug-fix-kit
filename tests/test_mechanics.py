@@ -154,7 +154,7 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
 def test_create_capture_replaces_current_capture_and_clears_stale_state(tmp_path: Path):
     bfk = tmp_path / ".bfk"
     bfk.mkdir()
-    for name in ["PROJECT.md", "issue.md", "runner.py", "request.json", "response.json", "output.log", "root-cause.md", "fix.md"]:
+    for name in ["PROJECT.md", "issue.md", "runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
         (bfk / name).write_text("stale")
 
     capture = create_capture(tmp_path, ["account=2"], base_url="http://localhost:8000", log_files=["logs/app.log"])
@@ -166,6 +166,7 @@ def test_create_capture_replaces_current_capture_and_clears_stale_state(tmp_path
     assert not (bfk / "request.json").exists()
     assert not (bfk / "response.json").exists()
     assert not (bfk / "output.log").exists()
+    assert not (bfk / "fix_output.log").exists()
     assert not (bfk / "root-cause.md").exists()
     assert not (bfk / "fix.md").exists()
 
@@ -191,6 +192,24 @@ def test_write_run_artifacts(tmp_path: Path):
     assert json.loads((iteration / "request.json").read_text())["method"] == "GET"
     assert json.loads((iteration / "response.json").read_text())["body"] == {"ok": True}
     assert (iteration / "output.log").read_text() == "log"
+
+
+def test_write_run_artifacts_can_write_fix_output_without_overwriting_capture_log(tmp_path: Path):
+    capture = tmp_path / ".bfk"
+    response = {"status_code": 200, "headers": {}, "body": {"ok": True}, "body_text": None, "empty_body": False, "elapsed_ms": 1, "transport_error": None}
+    capture.mkdir()
+    (capture / "output.log").write_text("original failure log")
+
+    write_run_artifacts(
+        capture,
+        {"method": "GET", "url": "http://x"},
+        response,
+        "fix verification log",
+        output_log_name="fix_output.log",
+    )
+
+    assert (capture / "output.log").read_text() == "original failure log"
+    assert (capture / "fix_output.log").read_text() == "fix verification log"
 
 
 def test_execute_request_normalizes_transport_errors(monkeypatch: pytest.MonkeyPatch):
