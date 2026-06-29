@@ -39,10 +39,16 @@ codex plugin add bug-fix-kit@personal
 - 你知道日志文件位置，例如 `logs/app.log`。
 - 最好有一条可以复现问题的 curl 请求。
 
-首次使用时，可以直接把这些信息告诉 Codex：
+这些信息要在本次 `$bfk-capture` 中一起提供。BFK 不保存项目级请求配置，也不会在你只传新参数时自动复用上一次请求上下文。
+
+没有提供任何参数或新上下文时，`$bfk-capture` 会重放已有 `.bfk/runner.py`。
+
+### 2. 采集一次复现证据
+
+在 Codex 中运行，并把本次请求的完整上下文一起传给 `$bfk-capture`：
 
 ```text
-我要用 Bug Fix Kit 调试这个项目。
+$bfk-capture 我要用 Bug Fix Kit 调试这个项目。
 本地服务：http://127.0.0.1:8000
 日志文件：logs/app.log
 复现请求：
@@ -51,15 +57,7 @@ curl --location 'http://127.0.0.1:8000/login' \
   --data '{"account":"13900000000","password":"bad"}'
 ```
 
-BFK 不保存项目级请求配置。每次切换接口或请求结构时，都要在本次 `$bfk-capture` 中提供新的 curl、base URL、日志文件等请求上下文。没有提供任何参数或新上下文时，`$bfk-capture` 会重放已有 `.bfk/runner.py`。
-
-### 2. 采集一次复现证据
-
-在 Codex 中运行：
-
-```text
-$bfk-capture account=13900000000 password=bad
-```
+当前版本暂不支持只传 `account=13900000000 password=bad` 来替换上一次 capture 的部分参数；如果要改变请求内容，请再次提供完整的本次请求上下文。
 
 `$bfk-capture` 会执行一次本地请求，并写入：
 
