@@ -56,7 +56,7 @@ Direct log location also uses locate:
 $bfk-locate --log logs/error.log --issue "login failed"
 ```
 
-The current bug evidence lives directly under `.bfk/`:
+The active bug evidence lives under `.bfk/`; previous bug evidence is archived below `.bfk/archive/`:
 
 ```text
 .bfk/
@@ -66,18 +66,27 @@ The current bug evidence lives directly under `.bfk/`:
 ├── output.log
 ├── root-cause.md
 ├── fix.md
-└── fix_output.log
+├── fix_output.log
+└── archive/
+    └── 2026-06-29_13-30-12/
+        ├── runner.py
+        ├── request.json
+        ├── response.json
+        ├── output.log
+        ├── root-cause.md
+        ├── fix.md
+        └── fix_output.log
 ```
 
 ## Mechanics
 
 ### Capture
 
-`$bfk-capture` is the one-stop evidence entrypoint. From the current request context, request sample, and request params, it replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
+`$bfk-capture` is the one-stop evidence entrypoint. From the current request context, request sample, and request params, it archives the previous current evidence under `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`, replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
 
 Bug Fix Kit does not keep reusable project-level request config. If the request interface or body shape changes, provide the new curl sample, base URL, headers/body, and log files in that capture. Invoking `$bfk-capture` with no params and no new context replays the existing `.bfk/runner.py`.
 
-Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture clears stale `root-cause.md`, `fix.md`, and `fix_output.log`.
+Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture archives stale current artifacts before clearing `root-cause.md`, `fix.md`, and `fix_output.log`; replaying the current `.bfk/runner.py` with no new context does not create an archive.
 
 ### Locate
 

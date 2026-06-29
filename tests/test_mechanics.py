@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.error import URLError
 
 import pytest
+import bug_fix_kit.mechanics as mechanics
 
 from bug_fix_kit.mechanics import (
     BfkError,
+    archive_current_capture,
     capture_offsets,
     create_capture,
     execute_request,
@@ -84,8 +87,6 @@ def test_create_capture_scaffolds_current_capture_without_persistent_context(tmp
     )
 
     assert capture == tmp_path / ".bfk"
-    assert not (capture / "PROJECT.md").exists()
-    assert not (capture / "issue.md").exists()
     runner = capture / "runner.py"
     assert runner.exists()
     assert latest_capture(tmp_path) == capture
@@ -115,8 +116,6 @@ def test_create_capture_preserves_request_contract_with_local_auth(tmp_path: Pat
     request = load_runner_request(capture / "runner.py")
     assert request["url"] == "http://127.0.0.1:8000/v1/responses"
     assert request["headers"]["x-litellm-api-key"] == "Bearer sk-secret"
-    assert not (capture / "PROJECT.md").exists()
-    assert not (capture / "issue.md").exists()
 
 
 def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_path: Path):
@@ -151,17 +150,15 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
     assert inner["params"]["target"]["code"] == "LGI-new"
 
 
-def test_create_capture_replaces_current_capture_and_clears_stale_state(tmp_path: Path):
+def test_create_capture_archives_current_capture_before_replacing_it(tmp_path: Path):
     bfk = tmp_path / ".bfk"
     bfk.mkdir()
-    for name in ["PROJECT.md", "issue.md", "runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
+    for name in ["runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
         (bfk / name).write_text("stale")
 
     capture = create_capture(tmp_path, ["account=2"], base_url="http://localhost:8000", log_files=["logs/app.log"])
 
     assert capture == bfk
-    assert not (bfk / "PROJECT.md").exists()
-    assert not (bfk / "issue.md").exists()
     assert (bfk / "runner.py").exists()
     assert not (bfk / "request.json").exists()
     assert not (bfk / "response.json").exists()
@@ -169,6 +166,40 @@ def test_create_capture_replaces_current_capture_and_clears_stale_state(tmp_path
     assert not (bfk / "fix_output.log").exists()
     assert not (bfk / "root-cause.md").exists()
     assert not (bfk / "fix.md").exists()
+    archive_dirs = sorted((bfk / "archive").iterdir())
+    assert len(archive_dirs) == 1
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", archive_dirs[0].name)
+    assert {path.name for path in archive_dirs[0].iterdir()} == {
+        "runner.py",
+        "request.json",
+        "response.json",
+        "output.log",
+        "fix_output.log",
+        "root-cause.md",
+        "fix.md",
+    }
+    for name in ["runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
+        assert (archive_dirs[0] / name).read_text() == "stale"
+
+
+def test_archive_current_capture_uses_readable_timestamp_suffixes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    bfk = tmp_path / ".bfk"
+    bfk.mkdir()
+    (bfk / "runner.py").write_text("first")
+
+    class FixedDatetime:
+        @classmethod
+        def now(cls):
+            return cls()
+
+        def strftime(self, _format: str) -> str:
+            return "2026-06-29_13-30-12"
+
+    monkeypatch.setattr(mechanics, "datetime", FixedDatetime)
+    assert archive_current_capture(bfk) == bfk / "archive" / "2026-06-29_13-30-12"
+
+    (bfk / "runner.py").write_text("second")
+    assert archive_current_capture(bfk) == bfk / "archive" / "2026-06-29_13-30-12-2"
 
 
 def test_log_offsets_read_only_appended_content_and_truncation(tmp_path: Path):
@@ -264,6 +295,7 @@ def test_empty_capture_replays_existing_runner_without_new_context(tmp_path: Pat
 
     assert replay == first
     assert (replay / "runner.py").read_text() == before
+    assert not (first / "archive").exists()
 
 
 def test_capture_with_params_requires_new_request_context(tmp_path: Path):

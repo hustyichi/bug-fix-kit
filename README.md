@@ -114,10 +114,19 @@ BFK 当前使用本地文件日志。
 ├── output.log       # 本次执行窗口内新增日志
 ├── root-cause.md    # locate 生成的根因报告
 ├── fix.md           # fix 生成的修复记录
-└── fix_output.log   # fix 回归验证期间新增日志
+├── fix_output.log   # fix 回归验证期间新增日志
+└── archive/         # 历史 bug 现场归档
+    └── 2026-06-29_13-30-12/
+        ├── runner.py
+        ├── request.json
+        ├── response.json
+        ├── output.log
+        ├── root-cause.md
+        ├── fix.md
+        └── fix_output.log
 ```
 
-BFK 只保留一个当前 capture。新的 `$bfk-capture` 会覆盖旧的 capture 产物，并清理旧的 `root-cause.md`、`fix.md` 和 `fix_output.log`。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`。
+BFK 只保留一个当前 capture。新的 `$bfk-capture` 会先把旧的当前现场归档到 `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`，再替换 `.bfk/` 顶层 capture 产物。空参数 `$bfk-capture` 会重放当前 `.bfk/runner.py`，不会产生新归档。
 
 ## 输出语言
 

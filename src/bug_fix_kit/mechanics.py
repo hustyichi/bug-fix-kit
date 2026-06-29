@@ -4,8 +4,10 @@ import importlib.util
 import json
 import re
 import shlex
+import shutil
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -19,6 +21,17 @@ class BfkError(RuntimeError):
 
 class RunnerExecutionError(BfkError):
     pass
+
+
+CAPTURE_ARTIFACT_NAMES = (
+    "runner.py",
+    "request.json",
+    "response.json",
+    "output.log",
+    "root-cause.md",
+    "fix.md",
+    "fix_output.log",
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +69,36 @@ class CaptureContext:
 
 def bfk_root(root: Path) -> Path:
     return root / ".bfk"
+
+
+def _next_archive_dir(archive_root: Path) -> Path:
+    stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    candidate = archive_root / stamp
+    suffix = 2
+    while candidate.exists():
+        candidate = archive_root / f"{stamp}-{suffix}"
+        suffix += 1
+    return candidate
+
+
+def archive_current_capture(issue_dir: Path) -> Path | None:
+    artifacts: list[Path] = []
+    for name in CAPTURE_ARTIFACT_NAMES:
+        artifact = issue_dir / name
+        if not artifact.exists():
+            continue
+        if not artifact.is_file():
+            raise BfkError(f"Cannot archive non-file bfk artifact: {artifact}")
+        artifacts.append(artifact)
+
+    if not artifacts:
+        return None
+
+    archive_dir = _next_archive_dir(issue_dir / "archive")
+    archive_dir.mkdir(parents=True, exist_ok=False)
+    for artifact in artifacts:
+        shutil.copy2(artifact, archive_dir / artifact.name)
+    return archive_dir
 
 
 def _origin_from_sample(sample: ParsedRequestSample | None) -> str:
@@ -444,18 +487,8 @@ def create_capture(
     )
     issue_dir = bfk_root(root)
     issue_dir.mkdir(parents=True, exist_ok=True)
-    for name in (
-        "PROJECT.md",
-        "issue.md",
-        "runner.py",
-        "request.json",
-        "response.json",
-        "output.log",
-        "fix_output.log",
-        "capture.md",
-        "root-cause.md",
-        "fix.md",
-    ):
+    archive_current_capture(issue_dir)
+    for name in CAPTURE_ARTIFACT_NAMES:
         (issue_dir / name).unlink(missing_ok=True)
 
     if config.request_sample:

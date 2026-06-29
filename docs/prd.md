@@ -68,14 +68,23 @@ $bfk-locate --log logs/error.log --issue "login failed"
 ├── output.log
 ├── root-cause.md
 ├── fix.md
-└── fix_output.log
+├── fix_output.log
+└── archive/
+    └── 2026-06-29_13-30-12/
+        ├── runner.py
+        ├── request.json
+        ├── response.json
+        ├── output.log
+        ├── root-cause.md
+        ├── fix.md
+        └── fix_output.log
 ```
 
 规则：
 
 - `.bfk/runner.py` 是当前 capture 的请求构造脚本。
-- 每次 capture 覆盖 `.bfk/` 顶层当前 capture 产物。
-- 新 capture 会删除旧的 `request.json`、`response.json`、`output.log`、`fix_output.log`、`runner.py`、`root-cause.md`、`fix.md`，也会清理旧版遗留的 `PROJECT.md` 和 `issue.md`。
+- 每次带新请求上下文的 capture 会先把 `.bfk/` 顶层当前 capture 产物归档到 `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`，再覆盖当前 capture。
+- 归档只包含当前存在的正式产物：`runner.py`、`request.json`、`response.json`、`output.log`、`fix_output.log`、`root-cause.md`、`fix.md`。
 - `request.json`、`response.json`、`output.log` 由 `$bfk-capture` 写入。
 - `root-cause.md` 由 `$bfk-locate` 写入。
 - `fix.md` 由 `$bfk-fix` 写入；可复现回归验证时，`fix_output.log` 由 `$bfk-fix` 写入。
@@ -94,11 +103,12 @@ $bfk-locate --log logs/error.log --issue "login failed"
 
 1. 如果没有参数也没有新请求上下文，重放已有 `.bfk/runner.py`；若不存在则要求用户提供可复现请求。
 2. 如果有参数或新上下文，只使用本次请求上下文创建新的独立 capture；上下文不足时说明缺失项，不复用旧请求。
-3. 覆盖 `.bfk/` 下当前 capture 产物。
-4. 创建新的 `runner.py`。
-5. 执行一次本地请求。
-6. 采集 request、response 和 offset 后新增日志。
-7. 写入 `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`。
+3. 如果 `.bfk/` 顶层存在当前正式产物，先归档到 `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`；同一秒冲突时追加 `-2`、`-3`。
+4. 覆盖 `.bfk/` 下当前 capture 产物。
+5. 创建新的 `runner.py`。
+6. 执行一次本地请求。
+7. 采集 request、response 和 offset 后新增日志。
+8. 写入 `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`。
 
 边界：不定位根因、不编辑代码、不写 `root-cause.md` 或 `fix.md`。
 
