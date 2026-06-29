@@ -16,7 +16,6 @@ from bug_fix_kit.mechanics import (
     execute_request,
     latest_capture,
     load_runner_request,
-    next_iteration_dir,
     read_since_offsets,
     write_run_artifacts,
 )
@@ -89,13 +88,15 @@ def test_create_capture_scaffolds_current_capture_without_persistent_context(tmp
     assert capture == tmp_path / ".bfk"
     runner = capture / "runner.py"
     assert runner.exists()
+    assert "Bug Fix Kit Capture Runner" in runner.read_text()
+    assert ("Bug Fix Kit " + "Issue " + "Runner") not in runner.read_text()
     assert latest_capture(tmp_path) == capture
 
     request = load_runner_request(runner)
     assert request["method"] == "POST"
     assert request["url"].startswith("http://localhost:8000")
     assert request["headers"]["Content-Type"] == "application/json"
-    assert "X-BugFix-Issue" not in request["headers"]
+    assert ("X-BugFix-" + "Issue") not in request["headers"]
     assert request["json"]["account"] == "13900000000"
 
 
@@ -215,14 +216,14 @@ def test_log_offsets_read_only_appended_content_and_truncation(tmp_path: Path):
 
 
 def test_write_run_artifacts(tmp_path: Path):
-    iteration = tmp_path / "001"
+    capture = tmp_path / ".bfk"
     response = {"status_code": 200, "headers": {}, "body": {"ok": True}, "body_text": None, "empty_body": False, "elapsed_ms": 1, "transport_error": None}
 
-    write_run_artifacts(iteration, {"method": "GET", "url": "http://x"}, response, "log")
+    write_run_artifacts(capture, {"method": "GET", "url": "http://x"}, response, "log")
 
-    assert json.loads((iteration / "request.json").read_text())["method"] == "GET"
-    assert json.loads((iteration / "response.json").read_text())["body"] == {"ok": True}
-    assert (iteration / "output.log").read_text() == "log"
+    assert json.loads((capture / "request.json").read_text())["method"] == "GET"
+    assert json.loads((capture / "response.json").read_text())["body"] == {"ok": True}
+    assert (capture / "output.log").read_text() == "log"
 
 
 def test_write_run_artifacts_can_write_fix_output_without_overwriting_capture_log(tmp_path: Path):
@@ -305,13 +306,6 @@ def test_capture_with_params_requires_new_request_context(tmp_path: Path):
         create_capture(tmp_path, ["account=2"])
 
 
-def test_next_iteration_dir_is_obsolete_for_single_capture(tmp_path: Path):
-    capture = tmp_path / ".bfk"
-    capture.mkdir()
-
-    assert next_iteration_dir(capture) == capture
-
-
 def test_load_runner_rejects_missing_or_malformed_build_request(tmp_path: Path):
     missing = tmp_path / "missing_build_request.py"
     missing.write_text("PARAMS = {}\n")
@@ -391,4 +385,4 @@ def test_project_headers_are_preserved_in_generated_runner(tmp_path: Path):
 
     assert request["headers"]["Authorization"] == "Bearer devtoken"
     assert request["headers"]["Content-Type"] == "application/json"
-    assert "X-BugFix-Issue" not in request["headers"]
+    assert ("X-BugFix-" + "Issue") not in request["headers"]

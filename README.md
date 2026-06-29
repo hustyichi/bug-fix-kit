@@ -76,7 +76,9 @@ Codex 会读取 capture 产物、日志和相关代码，写出 `.bfk/root-cause
 只有日志、没有可复现请求时，也可以这样用：
 
 ```text
-$bfk-locate --log logs/error.log --issue "login failed"
+$bfk-locate
+日志文件：logs/error.log
+问题现象：login failed
 ```
 
 ### 4. 执行最小修复
@@ -169,7 +171,9 @@ $bfk-fix
 可以，直接运行：
 
 ```text
-$bfk-locate --log logs/error.log --issue "这里写问题现象"
+$bfk-locate
+日志文件：logs/error.log
+问题现象：这里写问题现象
 ```
 
 这种模式可以定位根因，但通常无法自动复现和验证修复。

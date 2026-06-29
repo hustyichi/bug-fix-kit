@@ -5,12 +5,12 @@ description: "Locate a code-backed root cause from BFK capture artifacts or expl
 
 # Bug Fix Kit — Locate
 
-Use when the user invokes `$bfk-locate`, or provides logs and issue context for root-cause analysis.
+Use when the user invokes `$bfk-locate`, or provides logs and symptom context for root-cause analysis.
 
 ## Boundary
 
 - Reads the current capture by default: `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log` when present.
-- Also supports direct log input when the user gives log file(s) plus issue text and codebase context.
+- Also supports direct log input when the user gives log file(s) plus symptom text and codebase context.
 - Reads related local source code to reconstruct the log-code direct chain.
 - Writes only `.bfk/root-cause.md`.
 - Does not execute requests.

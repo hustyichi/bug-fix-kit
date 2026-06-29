@@ -53,7 +53,9 @@ $bfk-fix
 Direct log location also uses locate:
 
 ```text
-$bfk-locate --log logs/error.log --issue "login failed"
+$bfk-locate
+Log file: logs/error.log
+Symptom: login failed
 ```
 
 The active bug evidence lives under `.bfk/`; previous bug evidence is archived below `.bfk/archive/`:

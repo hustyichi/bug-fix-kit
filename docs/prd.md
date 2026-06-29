@@ -9,7 +9,7 @@ Bug Fix Kit（`bfk`）是一个本地 Codex 插件包，用于把一次本地服
 - Python stdlib helper CLI 只负责插件安装、外壳检查，以及 skills 复用的确定性请求/日志/artifact mechanics。
 - Codex skills 暴露三个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-fix`。
 - 根因定位必须基于日志/响应证据和代码直线链路；证据不足时输出 `unknown` 或 `blocked`，不能猜根因。
-- 当前实现只跟踪一个活动 capture；`.bfk/` 顶层就是当前 capture，不维护多 issue 名称或多轮 iteration。
+- 当前实现只跟踪一个活动 capture；`.bfk/` 顶层就是当前 capture，不维护按名称区分的多 capture 或多轮 iteration。
 
 MVP 不内置 demo HTTP app、不提供 Web UI、不自动 mock 外部依赖。
 
@@ -55,7 +55,9 @@ $bfk-fix
 直接日志定位：
 
 ```text
-$bfk-locate --log logs/error.log --issue "login failed"
+$bfk-locate
+日志文件：logs/error.log
+问题现象：login failed
 ```
 
 ## 4. `.bfk` artifact contract
@@ -119,7 +121,7 @@ $bfk-locate --log logs/error.log --issue "login failed"
 输入：
 
 - `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`；
-- 或用户显式提供的日志文件与 issue 描述；
+- 或用户显式提供的日志文件与问题现象描述；
 - 相关本地代码。
 
 根因标准：

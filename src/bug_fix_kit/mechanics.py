@@ -81,10 +81,10 @@ def _next_archive_dir(archive_root: Path) -> Path:
     return candidate
 
 
-def archive_current_capture(issue_dir: Path) -> Path | None:
+def archive_current_capture(capture_dir: Path) -> Path | None:
     artifacts: list[Path] = []
     for name in CAPTURE_ARTIFACT_NAMES:
-        artifact = issue_dir / name
+        artifact = capture_dir / name
         if not artifact.exists():
             continue
         if not artifact.is_file():
@@ -94,7 +94,7 @@ def archive_current_capture(issue_dir: Path) -> Path | None:
     if not artifacts:
         return None
 
-    archive_dir = _next_archive_dir(issue_dir / "archive")
+    archive_dir = _next_archive_dir(capture_dir / "archive")
     archive_dir.mkdir(parents=True, exist_ok=False)
     for artifact in artifacts:
         shutil.copy2(artifact, archive_dir / artifact.name)
@@ -485,18 +485,18 @@ def create_capture(
         endpoint=endpoint,
         after_request_wait_seconds=after_request_wait_seconds,
     )
-    issue_dir = bfk_root(root)
-    issue_dir.mkdir(parents=True, exist_ok=True)
-    archive_current_capture(issue_dir)
+    capture_dir = bfk_root(root)
+    capture_dir.mkdir(parents=True, exist_ok=True)
+    archive_current_capture(capture_dir)
     for name in CAPTURE_ARTIFACT_NAMES:
-        (issue_dir / name).unlink(missing_ok=True)
+        (capture_dir / name).unlink(missing_ok=True)
 
     if config.request_sample:
         runner = _request_contract_runner_template(params, config)
     else:
         runner = _runner_template(params, config)
-    (issue_dir / "runner.py").write_text(runner)
-    return issue_dir
+    (capture_dir / "runner.py").write_text(runner)
+    return capture_dir
 
 
 def _runner_template(
@@ -508,7 +508,7 @@ def _runner_template(
     headers = config.headers
     method = config.endpoint_method or "POST"
     endpoint_path = config.endpoint_path or "/"
-    return f'''# Bug Fix Kit Issue Runner
+    return f'''# Bug Fix Kit Capture Runner
 
 import json
 
@@ -550,7 +550,7 @@ def _request_contract_runner_template(params: dict[str, str], config: CaptureCon
         for mapping in config.parameter_mappings
         if mapping.locations
     }
-    return f'''# Bug Fix Kit Issue Runner
+    return f'''# Bug Fix Kit Capture Runner
 
 import copy
 import json
@@ -684,15 +684,10 @@ def latest_capture(root: Path) -> Path:
     return path
 
 
-def next_iteration_dir(issue_dir: Path) -> Path:
-    issue_dir.mkdir(parents=True, exist_ok=True)
-    return issue_dir
-
-
 def load_runner_request(runner_path: Path) -> dict[str, Any]:
     if not runner_path.exists():
         raise BfkError(f"runner.py missing: {runner_path}")
-    spec = importlib.util.spec_from_file_location("bfk_issue_runner", runner_path)
+    spec = importlib.util.spec_from_file_location("bfk_capture_runner", runner_path)
     if spec is None or spec.loader is None:
         raise BfkError(f"Cannot load runner: {runner_path}")
     module = importlib.util.module_from_spec(spec)
@@ -793,7 +788,7 @@ def execute_request(request: dict[str, Any], timeout: int | float = 30) -> dict[
 
 
 def write_run_artifacts(
-    iteration_dir: Path,
+    capture_dir: Path,
     request: dict[str, Any],
     response: dict[str, Any],
     logs: str,
@@ -802,7 +797,7 @@ def write_run_artifacts(
 ) -> None:
     if Path(output_log_name).name != output_log_name:
         raise BfkError("output_log_name must be a file name")
-    iteration_dir.mkdir(parents=True, exist_ok=True)
-    (iteration_dir / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False, default=str) + "\n")
-    (iteration_dir / "response.json").write_text(json.dumps(response, indent=2, ensure_ascii=False, default=str) + "\n")
-    (iteration_dir / output_log_name).write_text(logs)
+    capture_dir.mkdir(parents=True, exist_ok=True)
+    (capture_dir / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False, default=str) + "\n")
+    (capture_dir / "response.json").write_text(json.dumps(response, indent=2, ensure_ascii=False, default=str) + "\n")
+    (capture_dir / output_log_name).write_text(logs)
