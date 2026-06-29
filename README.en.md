@@ -2,55 +2,93 @@
 
 Language: [简体中文](README.md) | English
 
-Bug Fix Kit (`bfk`) is a PyPI-distributed local Codex plugin that compresses local service bug work into three steps: capture evidence, locate the root cause, and apply the smallest fix.
+[![PyPI](https://img.shields.io/pypi/v/bug-fix-kit.svg)](https://pypi.org/project/bug-fix-kit/)
 
-It keeps deterministic request replay, log capture, and artifact writing in a small stdlib Python helper, while Codex skills handle root-cause judgment and code repair.
+Bug Fix Kit (`bfk`) is a local Codex plugin that turns a local service bug into three clear steps:
+
+```text
+capture evidence -> locate the root cause -> apply the smallest fix
+```
+
+It is for cases where you have a local service, a request that reproduces the problem, and a local log file. BFK saves the request, response, and new logs so Codex can reason from evidence instead of guessing.
+
+## Who It Is For
+
+Use BFK when you already have:
+
+- A service you can run locally.
+- A request that reproduces the issue, ideally a full curl command.
+- A service log file, such as `logs/app.log`.
+- A need for Codex to find the root cause and make only the necessary repair.
 
 ## Install
 
-Release install:
+Install the plugin from the PyPI package:
+
+```bash
+uvx --from bug-fix-kit bfk install --yes
+```
+
+If you want to keep the `bfk` command installed, use pip:
 
 ```bash
 python3 -m pip install bug-fix-kit
-bfk --help
 bfk doctor
 bfk install --yes
 ```
 
-`pip install bug-fix-kit` installs only the `bfk` CLI; it does not automatically enable a Codex plugin.
-
-`bfk install` copies the plugin to `~/plugins/bug-fix-kit`, updates `~/.agents/plugins/marketplace.json`, and prints the next `codex plugin add bug-fix-kit@personal` command. Then enable `Bug Fix Kit` from Codex `/plugins`; start a new Codex thread if skills are not immediately visible.
-
-Local development install:
+`bfk install --yes` prints the next command, usually:
 
 ```bash
-python3 -m pip install -e .
-bfk install --yes
+codex plugin add bug-fix-kit@personal
 ```
 
-`--plugin-root` / `--source-root` may point at a custom plugin source; when it points at this repository root, `bfk` copies only `.codex-plugin/` and `skills/`. From an installed wheel, `bfk` uses the generated `bug_fix_kit/plugin_payload/bug-fix-kit` package resource. Existing installed plugin directories are overwritten only with `--yes`.
+Run the printed command, then enable `Bug Fix Kit` from Codex `/plugins`. If the `$bfk-*` skills do not appear immediately, start a new Codex thread.
 
-The PyPI distribution is `bug-fix-kit`, the console script is `bfk`, and the Python import package is `bug_fix_kit`.
+## Quick Start
 
-## Local Helper CLI
+Run these commands in **your project**, not in this repository.
 
-```bash
-bfk --help
-bfk doctor
-bfk install --yes
-```
+### 1. Prepare The Issue Context
 
-The helper CLI is only for plugin installation and shell checks. Bug handling is done by Codex skills; the CLI does not expose workflow commands.
+Before capture, make sure you have:
 
-## Codex Workflow
+- The local service running.
+- The base URL, such as `http://127.0.0.1:8000`.
+- The log file path, such as `logs/app.log`.
+- A request that reproduces the issue.
+
+### 2. Capture Evidence
+
+In Codex, pass the full request context to `$bfk-capture`:
 
 ```text
-$bfk-capture <full request context and optional key=value params>
-$bfk-locate
-$bfk-fix
+$bfk-capture Use Bug Fix Kit for this login failure.
+Local service: http://127.0.0.1:8000
+Log file: logs/app.log
+Repro request:
+curl --location 'http://127.0.0.1:8000/login' \
+  --header 'Content-Type: application/json' \
+  --data '{"account":"13900000000","password":"bad"}'
 ```
 
-Direct log location also uses locate:
+`$bfk-capture` runs one local request and writes:
+
+- `.bfk/request.json`: the actual request sent.
+- `.bfk/response.json`: the response or connection error.
+- `.bfk/output.log`: new log lines written during the request window.
+
+To change the request, provide the full context again. With no new params or context, `$bfk-capture` replays the existing `.bfk/runner.py`.
+
+### 3. Locate The Root Cause
+
+```text
+$bfk-locate
+```
+
+Codex reads the capture artifacts, logs, and related code, then writes `.bfk/root-cause.md`. If the evidence is insufficient, it reports what is missing instead of guessing.
+
+For a log-only case, use:
 
 ```text
 $bfk-locate
@@ -58,58 +96,85 @@ Log file: logs/error.log
 Symptom: login failed
 ```
 
-The active bug evidence lives under `.bfk/`; previous bug evidence is archived below `.bfk/archive/`:
+### 4. Apply The Smallest Fix
+
+```text
+$bfk-fix
+```
+
+`$bfk-fix` changes code only when `root-cause.md` confirms a code defect. When it can reuse the captured request, it reruns it and writes regression logs to `.bfk/fix_output.log`; otherwise it records the verification gap in `.bfk/fix.md`.
+
+## Output Structure
+
+BFK keeps one active bug scene. A new `$bfk-capture` archives the previous one before replacing the top-level `.bfk/` artifacts.
 
 ```text
 .bfk/
-├── runner.py
-├── request.json
-├── response.json
-├── output.log
-├── root-cause.md
-├── fix.md
-├── fix_output.log
-└── archive/
-    └── 2026-06-29_13-30-12/
-        ├── runner.py
-        ├── request.json
-        ├── response.json
-        ├── output.log
-        ├── root-cause.md
-        ├── fix.md
-        └── fix_output.log
+├── runner.py        # current capture request script
+├── request.json     # actual request
+├── response.json    # response or error
+├── output.log       # new logs during capture
+├── root-cause.md    # root-cause report
+├── fix.md           # fix record
+├── fix_output.log   # new logs during fix verification
+└── archive/         # older bug scenes
 ```
 
-## Mechanics
+## Logs
 
-### Capture
+BFK reads local file logs. Before running the request, it records the current log file size; after the request, it captures the new content into `.bfk/output.log`.
 
-`$bfk-capture` is the one-stop evidence entrypoint. From the current request context, request sample, and request params, it archives the previous current evidence under `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`, replaces the current evidence under `.bfk/`, generates `runner.py`, executes one local request, and captures request, response, and new logs.
+Notes:
 
-Bug Fix Kit does not keep reusable project-level request config. Provide the curl sample, base URL, headers/body, log files, and any request params in the same `$bfk-capture` invocation. Supplying only new params does not partially override the previous capture. Invoking `$bfk-capture` with no params and no new context replays the existing `.bfk/runner.py`.
+- Use the correct log path, preferably relative to the project root or absolute.
+- If logs are written asynchronously, ask BFK to wait longer before capture completes.
+- If other requests write to the same file at the same time, `output.log` can include unrelated lines.
+- If logs go to Docker stdout, journalctl, or a remote system, first save the relevant lines to a local file, or pass the log content directly to `$bfk-locate`.
 
-Boundary: executes and captures only; it does not locate root cause, edit code, or write `root-cause.md`. A new capture archives stale current artifacts before clearing `root-cause.md`, `fix.md`, and `fix_output.log`; replaying the current `.bfk/runner.py` with no new context does not create an archive.
+Adding a request ID to your application logs makes root-cause location more reliable. If your service supports request id or capture id headers, include one in the capture request.
 
-### Locate
+## FAQ
 
-`$bfk-locate` reads capture artifacts or explicit log files plus related code. It writes `root-cause.md` by tracing the direct chain from symptom to log/response evidence to code path to root cause.
+### Why does `bfk` not have capture / locate / fix commands?
 
-If evidence is insufficient, it reports `unknown` with missing evidence. If service, logs, inputs, or code context are unavailable, it reports `blocked`. It must not treat the final exception as the confirmed root cause by itself.
+That is expected. The `bfk` CLI only installs and checks the plugin:
 
-Boundary: analyzes and writes the root-cause report only; it does not execute requests, edit code, or write `fix.md`.
+```bash
+bfk --help
+bfk doctor
+bfk install --yes
+```
 
-### Fix
+Bug work happens through Codex skills:
 
-`$bfk-fix` applies the smallest code repair only when `root-cause.md` confirms a code defect. When reproducible capture context exists, it should reuse the current request under `.bfk/` for verification, write the verification log to `.bfk/fix_output.log`, and leave the original failure log `.bfk/output.log` intact. For log-only cases, it writes `changed_unverified` and tells the user what request or manual check is needed.
+```text
+$bfk-capture
+$bfk-locate
+$bfk-fix
+```
 
-Boundary: it does not guess fixes from `unknown` / `blocked` reports and does not claim verification it did not run.
+### Can I use BFK without a curl request?
 
-## Output Language
+Yes, but results are weaker. You can provide a base URL, endpoint, headers, and key params so BFK can build a simple request. A real curl command is better because it preserves the exact request shape.
 
-User-facing BFK descriptions default to Chinese, including capture summaries, `root-cause.md`, and `fix.md`. If the user explicitly requests another language, follow that intent. Keep status values, field names, file paths, code symbols, JSON keys, HTTP fields, and quoted logs unchanged.
+### What if `output.log` is empty?
 
-## MVP Boundaries
+Check three things:
 
-- No runtime dependencies.
-- No demo HTTP app, Web UI, OpenTelemetry, remote logging, YAML config, or automatic mocks.
-- No public workflow CLI commands.
+- The log path passed to `$bfk-capture` is correct.
+- The local service really writes to that file.
+- The service did not write the log after capture finished.
+
+If needed, use an absolute log path or ask BFK to wait longer after the request.
+
+### Can Codex inspect only an error log?
+
+Yes:
+
+```text
+$bfk-locate
+Log file: logs/error.log
+Symptom: describe the symptom here
+```
+
+This can locate a root cause, but usually cannot automatically reproduce the issue or verify the fix.

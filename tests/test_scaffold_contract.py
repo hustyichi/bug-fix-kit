@@ -70,10 +70,14 @@ def test_readme_has_initial_install_section():
     assert "Language: [简体中文](README.md) | English" in readme_en
     assert "## 安装" in readme
     assert "## Install" in readme_en
+    assert "https://img.shields.io/pypi/v/bug-fix-kit.svg" in readme
+    assert "https://img.shields.io/pypi/v/bug-fix-kit.svg" in readme_en
+    assert "uvx --from bug-fix-kit bfk install --yes" in readme
+    assert "uvx --from bug-fix-kit bfk install --yes" in readme_en
     assert "pip install bug-fix-kit" in readme
     assert "pip install bug-fix-kit" in readme_en
-    assert "plugin_payload" in readme
-    assert "plugin_payload" in readme_en
+    assert "plugin_payload" not in readme
+    assert "plugin_payload" not in readme_en
 
     for text in [readme, readme_en, prd, release_checklist]:
         assert "$bfk-capture" in text
