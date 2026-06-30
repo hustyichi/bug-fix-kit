@@ -12,7 +12,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-INTERNAL_COMMANDS = ["capture-run", "fix-verify", "locate-load"]
+INTERNAL_COMMANDS = ["capture-run", "fix-verify", "locate-load", "log-import"]
 
 
 def run_bfk(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -169,6 +169,35 @@ def test_locate_load_command_name_and_summary_shape(tmp_path: Path):
         "response.json",
         "output.log",
     ]
+
+
+def test_log_import_writes_external_logs_to_default_output_log(tmp_path: Path):
+    external = tmp_path / "external.log"
+    external.write_text("external failure\nstack trace\n")
+    bfk = tmp_path / ".bfk"
+    bfk.mkdir()
+    for name in ("runner.py", "request.json", "response.json", "output.log", "root-cause.md"):
+        (bfk / name).write_text("stale")
+
+    result = run_bfk(tmp_path, "log-import", "--log-file", str(external))
+
+    assert result.returncode == 0, result.stderr
+    summary = json.loads(result.stdout)
+    assert summary["log_files"] == [str(external)]
+    assert summary["missing_log_files"] == []
+    assert summary["output_log_bytes"] == len("external failure\nstack trace\n".encode())
+    assert (bfk / "output.log").read_text() == "external failure\nstack trace\n"
+    assert not (bfk / "runner.py").exists()
+    assert not (bfk / "request.json").exists()
+    assert not (bfk / "response.json").exists()
+    assert not (bfk / "root-cause.md").exists()
+
+    loaded = run_bfk(tmp_path, "locate-load")
+    assert loaded.returncode == 0, loaded.stderr
+    evidence = json.loads(loaded.stdout)
+    assert evidence["has_output_log"] is True
+    assert evidence["output_log"] == "external failure\nstack trace\n"
+    assert evidence["missing_evidence"] == ["request.json", "response.json"]
 
 
 def test_capture_run_missing_sample_file_is_normalized(tmp_path: Path):

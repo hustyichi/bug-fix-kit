@@ -96,6 +96,8 @@ Log file: logs/error.log
 Symptom: login failed
 ```
 
+`$bfk-locate` first saves those external logs as the current `.bfk/output.log`, then continues through the same root-cause flow.
+
 ### 4. Apply The Smallest Fix
 
 ```text

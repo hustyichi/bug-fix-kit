@@ -41,6 +41,7 @@ def test_capture_locate_fix_boundaries_are_explicit():
     locate = skill_text("bfk-locate").lower()
     assert "root-cause.md" in locate
     assert "direct chain" in locate
+    assert "log-import" in locate
     assert "log" in locate
     assert "code" in locate
     assert "unknown" in locate

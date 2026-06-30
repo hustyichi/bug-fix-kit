@@ -96,6 +96,8 @@ $bfk-locate
 问题现象：login failed
 ```
 
+`$bfk-locate` 会先把这些外部日志保存为当前 `.bfk/output.log`，再按同一套根因分析流程继续。
+
 ### 4. 执行最小修复
 
 ```text

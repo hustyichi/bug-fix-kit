@@ -20,7 +20,7 @@ from .curl import ParsedRequestSample, parse_request_sample
 from .errors import BfkError, RunnerExecutionError
 from .fix import run_fix_verification
 from .http import execute_request
-from .locate import load_capture_evidence
+from .locate import import_external_logs, load_capture_evidence
 from .logs import capture_offsets, read_since_offsets
 from .parameters import (ParameterMapping, parameter_mappings_from_sample,
                          parse_params)
@@ -42,6 +42,7 @@ __all__ = [
     "capture_offsets",
     "create_capture",
     "execute_request",
+    "import_external_logs",
     "latest_capture",
     "load_capture_evidence",
     "load_runner_module",

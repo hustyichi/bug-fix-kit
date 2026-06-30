@@ -19,7 +19,7 @@ from pathlib import Path
 from .mechanics import BfkError
 from .mechanics.capture import run_capture_session
 from .mechanics.fix import run_fix_verification
-from .mechanics.locate import load_capture_evidence
+from .mechanics.locate import import_external_logs, load_capture_evidence
 
 
 def _resolve_root(value: Path | None) -> Path:
@@ -72,6 +72,10 @@ def _cmd_locate_load(args: argparse.Namespace) -> int:
     return _print_summary(load_capture_evidence(_resolve_root(args.root)))
 
 
+def _cmd_log_import(args: argparse.Namespace) -> int:
+    return _print_summary(import_external_logs(_resolve_root(args.root), list(args.log_file or [])))
+
+
 def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     """Register the hidden skill-backing commands (no ``help=`` keeps them out of ``--help``)."""
     capture_run = subparsers.add_parser("capture-run")
@@ -95,3 +99,8 @@ def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     locate_load = subparsers.add_parser("locate-load")
     locate_load.add_argument("--root", type=Path, default=None)
     locate_load.set_defaults(func=_cmd_locate_load)
+
+    log_import = subparsers.add_parser("log-import")
+    log_import.add_argument("--root", type=Path, default=None)
+    log_import.add_argument("--log-file", dest="log_file", action="append", required=True)
+    log_import.set_defaults(func=_cmd_log_import)
