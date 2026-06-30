@@ -10,6 +10,7 @@ Use when the user invokes `$bfk-locate`, or provides logs and symptom context fo
 ## Boundary
 
 - Reads the current capture by default: `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log` when present.
+- Loads the captured evidence deterministically through the internal command `bfk locate-load`, which returns the parsed request/response, output log text, and a list of missing evidence files as JSON.
 - Also supports direct log input when the user gives log file(s) plus symptom text and codebase context.
 - Reads related local source code to reconstruct the log-code direct chain.
 - Writes only `.bfk/root-cause.md`.

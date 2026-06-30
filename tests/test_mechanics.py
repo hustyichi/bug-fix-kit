@@ -7,19 +7,13 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 
 import pytest
-import bug_fix_kit.mechanics as mechanics
 
-from bug_fix_kit.mechanics import (
-    BfkError,
-    archive_current_capture,
-    capture_offsets,
-    create_capture,
-    execute_request,
-    latest_capture,
-    load_runner_request,
-    read_since_offsets,
-    write_run_artifacts,
-)
+import bug_fix_kit.mechanics.artifacts as mechanics_artifacts
+from bug_fix_kit.mechanics import (BfkError, archive_current_capture,
+                                   capture_offsets, create_capture,
+                                   execute_request, latest_capture,
+                                   load_runner_request, read_since_offsets,
+                                   write_run_artifacts)
 
 
 def responses_project_merge_curl() -> str:
@@ -197,7 +191,7 @@ def test_archive_current_capture_uses_readable_timestamp_suffixes(monkeypatch: p
         def strftime(self, _format: str) -> str:
             return "2026-06-29_13-30-12"
 
-    monkeypatch.setattr(mechanics, "datetime", FixedDatetime)
+    monkeypatch.setattr(mechanics_artifacts, "datetime", FixedDatetime)
     assert archive_current_capture(bfk) == bfk / "archive" / "2026-06-29_13-30-12"
 
     (bfk / "runner.py").write_text("second")
@@ -249,7 +243,7 @@ def test_execute_request_normalizes_transport_errors(monkeypatch: pytest.MonkeyP
     def fail(*_args, **_kwargs):
         raise URLError("connection refused")
 
-    monkeypatch.setattr("bug_fix_kit.mechanics.urlopen", fail)
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", fail)
 
     response = execute_request({"method": "GET", "url": "http://127.0.0.1:1"}, timeout=1)
 
@@ -344,7 +338,7 @@ def test_execute_request_normalizes_json_text_empty_and_http_error(monkeypatch: 
         FakeResponse(200, b'plain text', "text/plain"),
         FakeResponse(204, b'', "text/plain"),
     ])
-    monkeypatch.setattr("bug_fix_kit.mechanics.urlopen", lambda *_args, **_kwargs: next(responses))
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", lambda *_args, **_kwargs: next(responses))
 
     json_response = execute_request({"method": "GET", "url": "http://example.test"})
     assert json_response["body"] == {"ok": True}
@@ -371,7 +365,7 @@ def test_execute_request_normalizes_http_errors(monkeypatch: pytest.MonkeyPatch)
             io.BytesIO(b'{"error": "bad"}'),
         )
 
-    monkeypatch.setattr("bug_fix_kit.mechanics.urlopen", fail)
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", fail)
 
     response = execute_request(
         {"method": "POST", "url": "http://example.test", "json": {"id": 1}}

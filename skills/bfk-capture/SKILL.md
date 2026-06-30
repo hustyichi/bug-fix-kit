@@ -27,7 +27,9 @@ Use when the user invokes `$bfk-capture [key=value ...]` or wants one-stop captu
 3. Archive existing current artifacts under `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`, if any exist.
 4. Replace the current capture files under `.bfk/`.
 5. Generate the smallest `.bfk/runner.py` from the current request sample or request parameters.
-6. Execute the runner through deterministic BFK mechanics.
+6. Execute the deterministic capture pipeline through the internal command `bfk capture-run` (creates the runner, snapshots log offsets, runs the request once, and writes the artifacts). Pass the gathered request context as arguments, for example:
+   `bfk capture-run account=13900000000 --base-url http://127.0.0.1:8000 --endpoint "POST /login" --log-file logs/app.log`.
+   Reuse `--request-sample`/`--request-sample-file` when the context is a curl sample, and omit params to replay the existing runner.
 7. Capture the exact request, response, and new log output into `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
 8. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.
 

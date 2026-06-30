@@ -6,6 +6,8 @@ from pathlib import Path
 
 from . import __version__
 from .installer import InstallError, install_plugin, resolve_payload_source
+from .internal_commands import register_internal_commands
+from .mechanics import BfkError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,7 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Bug Fix Kit local Codex plugin management CLI.",
     )
     parser.add_argument("--version", action="version", version=f"bfk {__version__}")
-    sub = parser.add_subparsers(dest="command")
+    # metavar hides the choice list so internal commands stay out of --help.
+    sub = parser.add_subparsers(dest="command", metavar="<command>")
 
     install = sub.add_parser("install", help="Install/register the local Codex plugin.")
     install.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=None)
@@ -24,6 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="Check local package/plugin shell.")
     doctor.add_argument("--plugin-root", "--source-root", dest="source_root", type=Path, default=None)
+
+    register_internal_commands(sub)
     return parser
 
 
@@ -53,13 +58,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        handler = getattr(args, "func", None)
+        if handler is not None:
+            return handler(args)
         if args.command == "install":
             return _cmd_install(args)
         if args.command == "doctor":
             return _cmd_doctor(args)
         parser.print_help()
         return 0
-    except InstallError as exc:
+    except (InstallError, BfkError) as exc:
         print(f"bfk: {exc}", file=sys.stderr)
         return 1
 
