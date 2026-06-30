@@ -16,6 +16,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .mechanics import BfkError
 from .mechanics.capture import run_capture_session
 from .mechanics.fix import run_fix_verification
 from .mechanics.locate import load_capture_evidence
@@ -40,8 +41,12 @@ def _print_summary(summary: dict) -> int:
 def _cmd_capture_run(args: argparse.Namespace) -> int:
     request_sample = args.request_sample or ""
     if args.request_sample_file:
-        request_sample = Path(args.request_sample_file).expanduser().read_text()
-    headers = dict(_split_header(item) for item in (args.header or []))
+        path = Path(args.request_sample_file).expanduser()
+        try:
+            request_sample = path.read_text()
+        except OSError as exc:
+            raise BfkError(f"cannot read --request-sample-file {path}: {exc.strerror or exc}") from exc
+    headers = dict(args.header or [])
     result = run_capture_session(
         _resolve_root(args.root),
         list(args.params or []),
@@ -74,7 +79,7 @@ def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     capture_run.add_argument("--root", type=Path, default=None)
     capture_run.add_argument("--base-url", dest="base_url", default="")
     capture_run.add_argument("--log-file", dest="log_file", action="append", default=[])
-    capture_run.add_argument("--header", action="append", default=[])
+    capture_run.add_argument("--header", action="append", default=[], type=_split_header)
     capture_run.add_argument("--endpoint", default="")
     capture_run.add_argument("--request-sample", dest="request_sample", default="")
     capture_run.add_argument("--request-sample-file", dest="request_sample_file", type=Path, default=None)
