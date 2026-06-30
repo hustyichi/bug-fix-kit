@@ -95,12 +95,17 @@ def clean_dist() -> None:
             shutil.rmtree(path)
 
 
+def distribution_groups(artifacts: list[Path]) -> tuple[list[Path], list[Path]]:
+    wheels = [path for path in artifacts if path.suffix == ".whl"]
+    sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
+    return wheels, sdists
+
+
 def build_artifacts() -> list[Path]:
     clean_dist()
     run([sys.executable, "-m", "build", "--sdist", "--wheel", "--outdir", str(DIST_DIR)])
     artifacts = sorted(path for path in DIST_DIR.iterdir() if path.is_file())
-    wheels = [path for path in artifacts if path.suffix == ".whl"]
-    sdists = [path for path in artifacts if path.name.endswith(".tar.gz")]
+    wheels, sdists = distribution_groups(artifacts)
     if len(wheels) != 1 or len(sdists) != 1:
         raise ReleaseError(f"expected one wheel and one sdist, found: {[p.name for p in artifacts]}")
     run([sys.executable, "-m", "twine", "check", *map(str, artifacts)])

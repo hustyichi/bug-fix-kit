@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import io
 import json
 import re
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 import bug_fix_kit.mechanics as mechanics
@@ -358,6 +359,29 @@ def test_execute_request_normalizes_json_text_empty_and_http_error(monkeypatch: 
     assert empty_response["empty_body"] is True
     assert empty_response["body"] is None
     assert empty_response["body_text"] is None
+
+
+def test_execute_request_normalizes_http_errors(monkeypatch: pytest.MonkeyPatch):
+    def fail(*_args, **_kwargs):
+        raise HTTPError(
+            "http://example.test",
+            422,
+            "Unprocessable Entity",
+            {"Content-Type": "application/json", "X-Test": "yes"},
+            io.BytesIO(b'{"error": "bad"}'),
+        )
+
+    monkeypatch.setattr("bug_fix_kit.mechanics.urlopen", fail)
+
+    response = execute_request(
+        {"method": "POST", "url": "http://example.test", "json": {"id": 1}}
+    )
+
+    assert response["status_code"] == 422
+    assert response["headers"]["X-Test"] == "yes"
+    assert response["body"] == {"error": "bad"}
+    assert response["body_text"] is None
+    assert response["transport_error"] is None
 
 
 def test_log_truncation_is_explicit(tmp_path: Path):

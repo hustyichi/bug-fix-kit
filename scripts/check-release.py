@@ -43,23 +43,37 @@ def bin_path(venv_dir: Path, executable: str) -> Path:
     return venv_dir / scripts / f"{executable}{suffix}"
 
 
+def is_distribution_wheel(path: Path) -> bool:
+    return path.name.startswith(DIST_PREFIX) and path.suffix == ".whl"
+
+
+def is_distribution_sdist(path: Path) -> bool:
+    return path.name.startswith(DIST_PREFIX) and path.name.endswith(".tar.gz")
+
+
+def distribution_artifacts(artifacts: list[Path]) -> tuple[Path, Path]:
+    wheel = next((path for path in artifacts if is_distribution_wheel(path)), None)
+    sdist = next((path for path in artifacts if is_distribution_sdist(path)), None)
+    if wheel is None:
+        raise AssertionError(f"missing normalized wheel: {[p.name for p in artifacts]}")
+    if sdist is None:
+        raise AssertionError(f"missing sdist: {[p.name for p in artifacts]}")
+    return wheel, sdist
+
+
 def build_distributions(temp_dir: Path) -> list[Path]:
     dist_dir = temp_dir / "dist"
     dist_dir.mkdir()
     run([sys.executable, "-m", "build", "--sdist", "--wheel", "--outdir", str(dist_dir)])
     artifacts = sorted(dist_dir.iterdir())
-    if not any(path.name.startswith(DIST_PREFIX) and path.suffix == ".whl" for path in artifacts):
-        raise AssertionError(f"missing normalized wheel: {[p.name for p in artifacts]}")
-    if not any(path.name.startswith("bug_fix_kit-") and path.name.endswith(".tar.gz") for path in artifacts):
-        raise AssertionError(f"missing sdist: {[p.name for p in artifacts]}")
+    distribution_artifacts(artifacts)
     inspect_archives(artifacts)
     run([sys.executable, "-m", "twine", "check", *map(str, artifacts)])
     return artifacts
 
 
 def inspect_archives(artifacts: list[Path]) -> None:
-    wheel = next(path for path in artifacts if path.suffix == ".whl")
-    sdist = next(path for path in artifacts if path.name.endswith(".tar.gz"))
+    wheel, sdist = distribution_artifacts(artifacts)
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
     _assert_contains(names, f"{WHEEL_PAYLOAD_PREFIX}/.codex-plugin/plugin.json", wheel.name)
@@ -148,8 +162,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="bug-fix-kit-release-") as tmp:
             temp_dir = Path(tmp)
             artifacts = build_distributions(temp_dir)
-            wheel = next(path for path in artifacts if path.suffix == ".whl")
-            sdist = next(path for path in artifacts if path.name.endswith(".tar.gz"))
+            wheel, sdist = distribution_artifacts(artifacts)
             smoke_artifact(wheel, temp_dir / "wheel-smoke")
             smoke_artifact(sdist, temp_dir / "sdist-smoke")
     finally:
