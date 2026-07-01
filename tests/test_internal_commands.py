@@ -10,6 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from bug_fix_kit.cli import build_parser
+from bug_fix_kit.mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 INTERNAL_COMMANDS = ["capture-run", "fix-verify", "locate-load", "log-import"]
@@ -67,6 +70,23 @@ def test_internal_commands_are_hidden_from_help(tmp_path: Path):
     assert result.returncode == 0
     for command in INTERNAL_COMMANDS:
         assert command not in result.stdout
+
+
+def test_internal_execution_defaults_allow_long_running_tasks():
+    parser = build_parser()
+
+    capture_args = parser.parse_args([
+        "capture-run",
+        "--base-url",
+        "http://127.0.0.1:8000",
+        "--log-file",
+        "app.log",
+    ])
+    verify_args = parser.parse_args(["fix-verify"])
+
+    assert DEFAULT_REQUEST_TIMEOUT_SECONDS >= 300
+    assert capture_args.timeout == DEFAULT_REQUEST_TIMEOUT_SECONDS
+    assert verify_args.timeout == DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 
 def test_capture_run_command_name_and_summary_shape(tmp_path: Path, local_service):

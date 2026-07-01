@@ -19,7 +19,7 @@ from .capture import (CaptureContext, CaptureRunResult, create_capture,
 from .curl import ParsedRequestSample, parse_request_sample
 from .errors import BfkError, RunnerExecutionError
 from .fix import run_fix_verification
-from .http import execute_request
+from .http import DEFAULT_REQUEST_TIMEOUT_SECONDS, execute_request
 from .locate import import_external_logs, load_capture_evidence
 from .logs import capture_offsets, read_since_offsets
 from .parameters import (ParameterMapping, parameter_mappings_from_sample,
@@ -34,6 +34,7 @@ __all__ = [
     "CAPTURE_ARTIFACT_NAMES",
     "CaptureContext",
     "CaptureRunResult",
+    "DEFAULT_REQUEST_TIMEOUT_SECONDS",
     "ParameterMapping",
     "ParsedRequestSample",
     "archive_current_capture",

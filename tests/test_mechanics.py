@@ -14,6 +14,7 @@ from bug_fix_kit.mechanics import (BfkError, archive_current_capture,
                                    execute_request, latest_capture,
                                    load_runner_request, read_since_offsets,
                                    write_run_artifacts)
+from bug_fix_kit.mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 
 def responses_project_merge_curl() -> str:
@@ -265,6 +266,161 @@ def test_execute_request_normalizes_transport_errors(monkeypatch: pytest.MonkeyP
     assert response["body_text"] is None
     assert response["transport_error"]["type"] == "transport_error"
     assert "connection refused" in response["transport_error"]["message"]
+
+
+def test_execute_request_default_timeout_allows_long_running_tasks(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, int | float] = {}
+
+    class Headers:
+        def items(self):
+            return {}
+
+        def get(self, _key: str, default: str = "") -> str:
+            return default
+
+    class FakeResponse:
+        status = 200
+        headers = Headers()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    def fake_urlopen(_request, *, timeout):
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", fake_urlopen)
+
+    response = execute_request({"method": "GET", "url": "http://example.test"})
+
+    assert response["status_code"] == 200
+    assert captured["timeout"] == DEFAULT_REQUEST_TIMEOUT_SECONDS
+    assert captured["timeout"] >= 300
+
+
+def test_execute_request_captures_sse_stream_until_done(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, int | float] = {}
+
+    class Headers(dict):
+        def items(self):
+            return super().items()
+
+    class FakeResponse:
+        status = 200
+        headers = Headers({"Content-Type": "text/event-stream"})
+
+        def __init__(self):
+            self.lines = iter([
+                b'data: {"delta": "hello"}\n',
+                b"\n",
+                b"data: [DONE]\n",
+                b"data: late\n",
+            ])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def readline(self):
+            return next(self.lines, b"")
+
+        def read(self):
+            raise AssertionError("streaming responses should be read incrementally")
+
+    def fake_urlopen(_request, *, timeout):
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", fake_urlopen)
+
+    response = execute_request({"method": "POST", "url": "http://example.test", "json": {"stream": True}})
+
+    assert response["status_code"] == 200
+    assert response["body"] is None
+    assert '{"delta": "hello"}' in response["body_text"]
+    assert "late" not in response["body_text"]
+    assert response["stream"]["detected"] is True
+    assert response["stream"]["complete"] is True
+    assert response["stream"]["truncated"] is False
+    assert response["stream"]["events"] == [
+        {"type": "sse_data", "data": '{"delta": "hello"}'},
+        {"type": "sse_data", "data": "[DONE]"},
+    ]
+    assert captured["timeout"] == DEFAULT_REQUEST_TIMEOUT_SECONDS
+
+
+def test_execute_request_preserves_partial_stream_on_idle_timeout(monkeypatch: pytest.MonkeyPatch):
+    class Headers(dict):
+        def items(self):
+            return super().items()
+
+    class SlowResponse:
+        status = 200
+        headers = Headers({"Content-Type": "text/event-stream"})
+
+        def __init__(self):
+            self.calls = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def readline(self):
+            self.calls += 1
+            if self.calls == 1:
+                return b"data: partial\n"
+            raise TimeoutError("idle timeout")
+
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", lambda *_args, **_kwargs: SlowResponse())
+
+    response = execute_request({"method": "GET", "url": "http://example.test", "capture_stream": True}, timeout=1)
+
+    assert response["status_code"] == 200
+    assert response["body_text"] == "data: partial\n"
+    assert response["transport_error"] is None
+    assert response["stream"]["detected"] is True
+    assert response["stream"]["complete"] is False
+    assert response["stream"]["error"]["type"] == "TimeoutError"
+    assert "idle timeout" in response["stream"]["error"]["message"]
+
+
+def test_execute_request_truncates_stream_response(monkeypatch: pytest.MonkeyPatch):
+    class Headers(dict):
+        def items(self):
+            return super().items()
+
+    class LargeResponse:
+        status = 200
+        headers = Headers({"Content-Type": "application/x-ndjson"})
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def readline(self):
+            return b'{"token": "abcdef"}\n'
+
+    monkeypatch.setattr("bug_fix_kit.mechanics.http.urlopen", lambda *_args, **_kwargs: LargeResponse())
+
+    response = execute_request({"method": "GET", "url": "http://example.test"}, max_response_bytes=8)
+
+    assert response["body_text"] == '{"token"'
+    assert response["stream"]["detected"] is True
+    assert response["stream"]["complete"] is False
+    assert response["stream"]["truncated"] is True
+    assert response["stream"]["bytes_captured"] == 8
 
 
 def test_latest_capture_requires_existing_runner(tmp_path: Path):

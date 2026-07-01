@@ -19,6 +19,7 @@ from pathlib import Path
 from .mechanics import BfkError
 from .mechanics.capture import run_capture_session
 from .mechanics.fix import run_fix_verification
+from .mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
 from .mechanics.locate import import_external_logs, load_capture_evidence
 
 
@@ -88,12 +89,12 @@ def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     capture_run.add_argument("--request-sample", dest="request_sample", default="")
     capture_run.add_argument("--request-sample-file", dest="request_sample_file", type=Path, default=None)
     capture_run.add_argument("--wait", type=float, default=2.0)
-    capture_run.add_argument("--timeout", type=float, default=30.0)
+    capture_run.add_argument("--timeout", type=float, default=DEFAULT_REQUEST_TIMEOUT_SECONDS)
     capture_run.set_defaults(func=_cmd_capture_run)
 
     fix_verify = subparsers.add_parser("fix-verify")
     fix_verify.add_argument("--root", type=Path, default=None)
-    fix_verify.add_argument("--timeout", type=float, default=30.0)
+    fix_verify.add_argument("--timeout", type=float, default=DEFAULT_REQUEST_TIMEOUT_SECONDS)
     fix_verify.set_defaults(func=_cmd_fix_verify)
 
     locate_load = subparsers.add_parser("locate-load")

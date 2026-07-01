@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from .artifacts import archive_current_capture, bfk_root, write_run_artifacts
 from .curl import ParsedRequestSample, parse_request_sample
 from .errors import BfkError
-from .http import execute_request
+from .http import DEFAULT_REQUEST_TIMEOUT_SECONDS, execute_request
 from .logs import capture_offsets, read_since_offsets
 from .parameters import (ParameterMapping, parameter_mappings_from_sample,
                          parse_params)
@@ -224,7 +224,7 @@ def run_capture_session(
     request_sample: str = "",
     endpoint: str = "",
     after_request_wait_seconds: int | float = 2,
-    timeout: int | float = 30,
+    timeout: int | float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
 ) -> CaptureRunResult:
     """Deterministically create-or-replay a capture and write its run artifacts.
 
