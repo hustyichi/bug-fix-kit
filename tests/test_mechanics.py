@@ -178,10 +178,22 @@ def test_create_capture_archives_current_capture_before_replacing_it(tmp_path: P
         assert (archive_dirs[0] / name).read_text() == "stale"
 
 
+def test_create_capture_does_not_archive_runner_only_scaffold(tmp_path: Path):
+    bfk = tmp_path / ".bfk"
+    bfk.mkdir()
+    (bfk / "runner.py").write_text("incomplete first-run scaffold")
+
+    create_capture(tmp_path, ["account=2"], base_url="http://localhost:8000", log_files=["logs/app.log"])
+
+    assert not (bfk / "archive").exists()
+    assert "incomplete first-run scaffold" not in (bfk / "runner.py").read_text()
+
+
 def test_archive_current_capture_uses_readable_timestamp_suffixes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     bfk = tmp_path / ".bfk"
     bfk.mkdir()
     (bfk / "runner.py").write_text("first")
+    (bfk / "output.log").write_text("first log")
 
     class FixedDatetime:
         @classmethod
@@ -195,6 +207,7 @@ def test_archive_current_capture_uses_readable_timestamp_suffixes(monkeypatch: p
     assert archive_current_capture(bfk) == bfk / "archive" / "2026-06-29_13-30-12"
 
     (bfk / "runner.py").write_text("second")
+    (bfk / "output.log").write_text("second log")
     assert archive_current_capture(bfk) == bfk / "archive" / "2026-06-29_13-30-12-2"
 
 

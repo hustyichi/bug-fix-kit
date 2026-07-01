@@ -18,6 +18,8 @@ CAPTURE_ARTIFACT_NAMES = (
     "fix_output.log",
 )
 
+ARCHIVE_TRIGGER_ARTIFACT_NAMES = tuple(name for name in CAPTURE_ARTIFACT_NAMES if name != "runner.py")
+
 
 def bfk_root(root: Path) -> Path:
     return root / ".bfk"
@@ -35,6 +37,7 @@ def _next_archive_dir(archive_root: Path) -> Path:
 
 def archive_current_capture(capture_dir: Path) -> Path | None:
     artifacts: list[Path] = []
+    has_archive_trigger = False
     for name in CAPTURE_ARTIFACT_NAMES:
         artifact = capture_dir / name
         if not artifact.exists():
@@ -42,8 +45,9 @@ def archive_current_capture(capture_dir: Path) -> Path | None:
         if not artifact.is_file():
             raise BfkError(f"Cannot archive non-file bfk artifact: {artifact}")
         artifacts.append(artifact)
+        has_archive_trigger = has_archive_trigger or name in ARCHIVE_TRIGGER_ARTIFACT_NAMES
 
-    if not artifacts:
+    if not artifacts or not has_archive_trigger:
         return None
 
     archive_dir = _next_archive_dir(capture_dir / "archive")

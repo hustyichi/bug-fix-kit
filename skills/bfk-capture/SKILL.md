@@ -16,22 +16,20 @@ Use when the user invokes `$bfk-capture [key=value ...]` or wants one-stop captu
 - Executes the selected local request once.
 - Writes `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
 - Archives and then clears stale current artifacts before writing the new capture, including `.bfk/root-cause.md`, `.bfk/fix.md`, and `.bfk/fix_output.log` when present.
+- Does not manually create, archive, delete, or rewrite `.bfk` files outside the single `bfk capture-run` command.
 - Does not locate root cause; does not analyze root cause.
 - Does not edit code and does not modify application files.
 - Does not write `root-cause.md` or `fix.md`.
 
 ## Workflow
 
-1. If the user provided no params and no new request context, load existing `.bfk/runner.py` for replay; if it is missing, ask for a reproducible request.
+1. If the user provided no params and no new request context, replay through `bfk capture-run`; if `.bfk/runner.py` is missing, ask for a reproducible request.
 2. If the user provided params or new context, build a new independent capture from the current request context only.
-3. Archive existing current artifacts under `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`, if any exist.
-4. Replace the current capture files under `.bfk/`.
-5. Generate the smallest `.bfk/runner.py` from the current request sample or request parameters.
-6. Execute the deterministic capture pipeline through the internal command `bfk capture-run` (creates the runner, snapshots log offsets, runs the request once, and writes the artifacts). Pass the gathered request context as arguments, for example:
+3. Execute the deterministic capture pipeline exactly once through the internal command `bfk capture-run` (creates or replays the runner, archives any previous completed capture evidence, snapshots log offsets, runs the request once, and writes the artifacts). Pass the gathered request context as arguments, for example:
    `bfk capture-run account=13900000000 --base-url http://127.0.0.1:8000 --endpoint "POST /login" --log-file logs/app.log`.
    Reuse `--request-sample`/`--request-sample-file` when the context is a curl sample, and omit params to replay the existing runner.
-7. Capture the exact request, response, and new log output into `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
-8. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.
+4. Inspect the command summary and current artifacts: `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
+5. If the service, runner, request, or logs are blocked, still write every available artifact and summarize missing evidence in the Codex response.
 
 ## Output language
 

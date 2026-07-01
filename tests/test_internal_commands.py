@@ -112,6 +112,7 @@ def test_capture_run_command_name_and_summary_shape(tmp_path: Path, local_servic
     capture_dir = tmp_path / ".bfk"
     for name in ("runner.py", "request.json", "response.json", "output.log"):
         assert (capture_dir / name).exists()
+    assert not (capture_dir / "archive").exists()
 
 
 def test_fix_verify_command_name_and_summary_shape(tmp_path: Path, local_service):
