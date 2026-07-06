@@ -66,7 +66,8 @@ fi
 
 if command -v pipx >/dev/null 2>&1; then
   echo "installing editable CLI with pipx"
-  pipx install --force --editable .
+  pipx uninstall "${PLUGIN_NAME}" >/dev/null 2>&1 || true
+  pipx install --editable .
 else
   echo "pipx not found; installing editable CLI with pip"
   python3 -m pip install -e . >/dev/null
