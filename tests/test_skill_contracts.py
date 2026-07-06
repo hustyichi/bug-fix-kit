@@ -61,6 +61,9 @@ def test_capture_locate_fix_boundaries_are_explicit():
 
     fix = skill_text("bfk-fix").lower()
     assert "root-cause.md" in fix
+    assert "fix-plan.md" in fix
+    assert "primary repair instructions" in fix
+    assert "does not silently ignore `.bfk/fix-plan.md`" in fix
     assert "confirmed root cause" in fix
     assert "fix.md" in fix
     assert "fix_output.log" in fix

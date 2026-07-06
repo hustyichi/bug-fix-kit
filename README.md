@@ -112,7 +112,7 @@ $bfk-fix-plan
 $bfk-fix
 ```
 
-`$bfk-fix` 只在 `root-cause.md` 已经确认代码缺陷时修改代码。是否先按 `.bfk/fix-plan.md` 讨论到满意，由用户自己决定；运行 `$bfk-fix` 就表示开始执行修复。能复用 capture 验证时会重新跑请求，并把本次回归新增日志写入 `.bfk/fix_output.log`；不能验证时会在 `.bfk/fix.md` 里写清楚。
+`$bfk-fix` 只在 `root-cause.md` 已经确认代码缺陷时修改代码。如果 `.bfk/fix-plan.md` 存在，会优先遵循该方案执行修复；没有方案时才直接按根因做最小修复。能复用 capture 验证时会重新跑请求，并把本次回归新增日志写入 `.bfk/fix_output.log`；不能验证时会在 `.bfk/fix.md` 里写清楚。
 
 ## 输出结构
 

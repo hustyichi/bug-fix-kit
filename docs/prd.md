@@ -167,15 +167,17 @@ $bfk-locate
 
 ## 8. `$bfk-fix`
 
-作用：基于已确认的 `root-cause.md` 执行最小代码修复。
+作用：基于已确认的 `root-cause.md` 执行最小代码修复；若 `.bfk/fix-plan.md` 存在，则优先遵循该方案。
 
 行为：
 
 1. 读取最新 `root-cause.md`。
 2. 若状态为 `unknown`、`blocked`、缺失根因或不是代码缺陷，则拒绝编辑。
-3. 若根因明确，执行最小修复。
-4. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证，将回归新增日志写入 `.bfk/fix_output.log`，不覆盖 `.bfk/output.log`。
-5. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
+3. 若存在 `.bfk/fix-plan.md`，读取并优先遵循其中的 proposed fix、files、constraints、rejected options 和 verification plan。
+4. 若方案缺失，则直接从已确认根因推导最小修复。
+5. 若方案过期、过宽或与已确认根因冲突，则不静默忽略方案，写入 `refused` 或 `blocked` 的 `fix.md` 并说明原因。
+6. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证，将回归新增日志写入 `.bfk/fix_output.log`，不覆盖 `.bfk/output.log`。
+7. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
 
 最终状态：
 

@@ -112,7 +112,7 @@ $bfk-fix-plan
 $bfk-fix
 ```
 
-`$bfk-fix` changes code only when `root-cause.md` confirms a code defect. The user decides whether to first discuss `.bfk/fix-plan.md`; running `$bfk-fix` means starting the repair. When it can reuse the captured request, it reruns it and writes regression logs to `.bfk/fix_output.log`; otherwise it records the verification gap in `.bfk/fix.md`.
+`$bfk-fix` changes code only when `root-cause.md` confirms a code defect. If `.bfk/fix-plan.md` exists, it follows that plan first; without a plan, it derives the smallest fix directly from the root cause. When it can reuse the captured request, it reruns it and writes regression logs to `.bfk/fix_output.log`; otherwise it records the verification gap in `.bfk/fix.md`.
 
 ## Output Structure
 

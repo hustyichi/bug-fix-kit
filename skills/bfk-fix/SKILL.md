@@ -1,17 +1,19 @@
 ---
 name: bfk-fix
-description: "Apply the smallest code repair from a confirmed BFK root-cause.md and write fix.md with conditional verification."
+description: "Apply the smallest code repair, preferring fix-plan.md when present, and write fix.md with conditional verification."
 ---
 
 # Bug Fix Kit — Fix
 
-Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed `.bfk/root-cause.md`.
+Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed `.bfk/root-cause.md`. If `.bfk/fix-plan.md` exists, treat it as the primary repair instructions.
 
 ## Boundary
 
-- Reads `.bfk/root-cause.md` and related code files.
+- Reads `.bfk/root-cause.md`, `.bfk/fix-plan.md` when present, and related code files.
 - Refuses to edit when `root-cause.md` is `unknown`, `blocked`, missing, or lacks a confirmed code defect.
 - May modify local code only for a confirmed root cause with direct-chain evidence.
+- When `.bfk/fix-plan.md` exists, follows that plan's proposed fix, files, constraints, rejected options, and verification plan before deriving a fallback from `root-cause.md`.
+- Does not silently ignore `.bfk/fix-plan.md`; if the plan is stale, unsafe, too broad, or conflicts with the confirmed root cause, stop and write `fix.md` with `refused` or `blocked` and the reason.
 - Makes the smallest root-cause fix; no unrelated refactors or public API changes unless required by the confirmed defect.
 - Does not guess fixes from incomplete, unknown, or blocked root-cause reports.
 - Writes `.bfk/fix.md`.
@@ -24,9 +26,10 @@ Use when the user invokes `$bfk-fix` after `$bfk-locate` has written a confirmed
 1. Read `.bfk/root-cause.md`.
 2. If status is `unknown` or `blocked`, refuse code edits and write `fix.md` with status `refused` or `blocked`.
 3. If status is not a confirmed code defect, refuse broad or guessed fixes.
-4. Apply the smallest code change that addresses the confirmed root cause.
-5. If `request.json`, `runner.py`, and required local service/log context exist, rerun the same capture path through the internal command `bfk fix-verify`, which replays the captured runner and writes the newly captured verification log to `.bfk/fix_output.log` without overwriting `.bfk/output.log`; inspect the result.
-6. Write `fix.md` with root cause used, changed files, verification evidence, risk, and next action.
+4. If `.bfk/fix-plan.md` exists, read it and apply the smallest code change that follows the current plan while still addressing the confirmed root cause.
+5. If `.bfk/fix-plan.md` is absent, apply the smallest code change derived directly from the confirmed root cause.
+6. If `request.json`, `runner.py`, and required local service/log context exist, rerun the same capture path through the internal command `bfk fix-verify`, which replays the captured runner and writes the newly captured verification log to `.bfk/fix_output.log` without overwriting `.bfk/output.log`; inspect the result.
+7. Write `fix.md` with root cause used, fix plan used when present, changed files, verification evidence, risk, and next action.
 
 ## Final statuses
 
