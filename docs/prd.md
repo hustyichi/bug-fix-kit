@@ -116,7 +116,7 @@ $bfk-locate
 7. 采集 request、response 和 offset 后新增日志。
 8. 写入 `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`。
 
-边界：不定位根因、不编辑代码、不写 `root-cause.md` 或 `fix.md`。
+边界：不定位根因、不编辑代码、不写 `root-cause.md`、`fix-plan.md` 或 `fix.md`。
 
 ## 6. `$bfk-locate`
 

@@ -34,6 +34,7 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "request.json" in capture
     assert "response.json" in capture
     assert "output.log" in capture
+    assert "fix-plan.md" in capture
     assert "fix_output.log" in capture
     assert "does not analyze root cause" in capture
     assert "does not modify" in capture or "does not edit" in capture

@@ -15,11 +15,11 @@ Use when the user invokes `$bfk-capture [key=value ...]` or wants one-stop captu
 - When params or partial context are provided but the request cannot be built, asks for the missing request context instead of reusing old state.
 - Executes the selected local request once.
 - Writes `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log`.
-- Archives and then clears stale current artifacts before writing the new capture, including `.bfk/root-cause.md`, `.bfk/fix.md`, and `.bfk/fix_output.log` when present.
+- Archives and then clears stale current artifacts before writing the new capture, including `.bfk/root-cause.md`, `.bfk/fix-plan.md`, `.bfk/fix.md`, and `.bfk/fix_output.log` when present.
 - Does not manually create, archive, delete, or rewrite `.bfk` files outside the single `bfk capture-run` command.
 - Does not locate root cause; does not analyze root cause.
 - Does not edit code and does not modify application files.
-- Does not write `root-cause.md` or `fix.md`.
+- Does not write `root-cause.md`, `fix-plan.md`, or `fix.md`.
 
 ## Workflow
 

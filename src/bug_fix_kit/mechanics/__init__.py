@@ -2,9 +2,9 @@
 
 Shared primitives live in :mod:`errors`, :mod:`artifacts`, :mod:`logs`,
 :mod:`http`, and :mod:`runner`. Capture input parsing lives in :mod:`curl`
-and :mod:`parameters`. Each skill's orchestration is split into its own
-module: :mod:`capture` (``$bfk-capture``), :mod:`fix` (``$bfk-fix``), and
-:mod:`locate` (``$bfk-locate``).
+and :mod:`parameters`. Deterministic command-backed orchestration lives in
+:mod:`capture` (``$bfk-capture``), :mod:`fix` (``$bfk-fix``), and
+:mod:`locate` (``$bfk-locate``); ``$bfk-fix-plan`` is skill-only.
 
 This package re-exports the stable surface used by tests and callers so
 ``import bug_fix_kit.mechanics`` keeps working after the split.

@@ -197,7 +197,7 @@ def test_log_import_writes_external_logs_to_default_output_log(tmp_path: Path):
     external.write_text("external failure\nstack trace\n")
     bfk = tmp_path / ".bfk"
     bfk.mkdir()
-    for name in ("runner.py", "request.json", "response.json", "output.log", "root-cause.md"):
+    for name in ("runner.py", "request.json", "response.json", "output.log", "root-cause.md", "fix-plan.md"):
         (bfk / name).write_text("stale")
 
     result = run_bfk(tmp_path, "log-import", "--log-file", str(external))
@@ -212,6 +212,7 @@ def test_log_import_writes_external_logs_to_default_output_log(tmp_path: Path):
     assert not (bfk / "request.json").exists()
     assert not (bfk / "response.json").exists()
     assert not (bfk / "root-cause.md").exists()
+    assert not (bfk / "fix-plan.md").exists()
 
     loaded = run_bfk(tmp_path, "locate-load")
     assert loaded.returncode == 0, loaded.stderr
