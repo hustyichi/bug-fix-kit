@@ -9,9 +9,10 @@ set -euo pipefail
 # Steps:
 #   1. Read plugin name + version from .codex-plugin/plugin.json.
 #   2. Clear the stale Codex plugin cache for this version.
-#   3. Sync the editable package (uv preferred, pip fallback).
-#   4. Copy/register the plugin into ~/plugins + personal marketplace.
-#   5. Run `bfk doctor` to confirm the plugin shell is healthy.
+#   3. Sync the dev environment when uv is available.
+#   4. Reinstall the PATH `bfk` CLI from this checkout.
+#   5. Copy/register the plugin into ~/plugins + personal marketplace.
+#   6. Run `bfk doctor` to confirm the plugin shell is healthy.
 #
 # Extra args are forwarded to `bfk install`, e.g.:
 #   scripts/dev-refresh-install.sh --home /tmp/fake-home
@@ -57,20 +58,34 @@ else
 fi
 
 if command -v uv >/dev/null 2>&1; then
-  echo "syncing editable package with uv"
+  echo "syncing dev environment with uv"
   uv sync
-  RUN=(uv run)
 else
-  echo "uv not found; installing editable package with pip"
-  python3 -m pip install -e . >/dev/null
-  RUN=()
+  echo "uv not found; skipping dev environment sync"
 fi
 
+if command -v pipx >/dev/null 2>&1; then
+  echo "installing editable CLI with pipx"
+  pipx install --force --editable .
+else
+  echo "pipx not found; installing editable CLI with pip"
+  python3 -m pip install -e . >/dev/null
+fi
+hash -r || true
+
+if ! command -v bfk >/dev/null 2>&1; then
+  echo "error: bfk CLI is not on PATH after install" >&2
+  exit 2
+fi
+
+echo "using bfk CLI: $(command -v bfk)"
+bfk --version
+
 echo "installing local checkout into personal marketplace"
-"${RUN[@]}" bfk install --yes "$@"
+bfk install --yes "$@"
 
 echo "checking local plugin shell"
-"${RUN[@]}" bfk doctor
+bfk doctor
 
 echo
 echo "done."
