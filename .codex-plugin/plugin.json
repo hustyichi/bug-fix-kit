@@ -29,7 +29,7 @@
     "defaultPrompt": [
       "Capture evidence for this local bug with $bfk-capture.",
       "Locate the root cause with $bfk-locate using capture artifacts or logs.",
-      "Apply the minimal confirmed fix with $bfk-fix."
+      "Draft a repair plan with $bfk-fix-plan, then apply the minimal confirmed fix with $bfk-fix."
     ],
     "brandColor": "#0F766E",
     "screenshots": []

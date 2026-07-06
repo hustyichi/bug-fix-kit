@@ -49,6 +49,16 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "do not guess" in locate
     assert "does not modify" in locate or "does not edit" in locate
 
+    fix_plan = skill_text("bfk-fix-plan").lower()
+    assert "root-cause.md" in fix_plan
+    assert "fix-plan.md" in fix_plan
+    assert "latest repair plan" in fix_plan
+    assert "does not modify application code" in fix_plan
+    assert "does not write `.bfk/fix.md`" in fix_plan
+    assert "does not run `bfk fix-verify`" in fix_plan
+    assert "does not maintain approval state" in fix_plan
+    assert "revision history" in fix_plan
+
     fix = skill_text("bfk-fix").lower()
     assert "root-cause.md" in fix
     assert "confirmed root cause" in fix

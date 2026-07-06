@@ -4,12 +4,12 @@
 
 Bug Fix Kit（`bfk`）是一个本地 Codex 插件包，用于把一次本地服务异常处理沉淀为可重复查看的证据、根因报告和修复记录。
 
-当前实现采用 **three-step minimal** 形态：
+当前实现采用本地证据优先的 minimal 形态：
 
 - Python stdlib helper CLI 只负责插件安装、外壳检查，以及 skills 复用的确定性请求/日志/artifact mechanics。
-- Codex skills 暴露三个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-fix`。
+- Codex skills 暴露四个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-fix-plan`、`$bfk-fix`。
 - 根因定位必须基于日志/响应证据和代码直线链路；证据不足时输出 `unknown` 或 `blocked`，不能猜根因。
-- 当前实现只跟踪一个活动 capture；`.bfk/` 顶层就是当前 capture，不维护按名称区分的多 capture 或多轮 iteration。
+- 当前实现只跟踪一个活动 capture；`.bfk/` 顶层就是当前 capture，不维护按名称区分的多 capture。`fix-plan.md` 只保留当前最新版修复方案，不维护状态或历史。
 
 MVP 不内置 demo HTTP app、不提供 Web UI、不自动 mock 外部依赖。
 
@@ -49,6 +49,7 @@ CLI 不提供公共问题处理命令。
 ```text
 $bfk-capture <key=value ...>
 $bfk-locate
+$bfk-fix-plan
 $bfk-fix
 ```
 
@@ -69,6 +70,7 @@ $bfk-locate
 ├── response.json
 ├── output.log
 ├── root-cause.md
+├── fix-plan.md
 ├── fix.md
 ├── fix_output.log
 └── archive/
@@ -78,6 +80,7 @@ $bfk-locate
         ├── response.json
         ├── output.log
         ├── root-cause.md
+        ├── fix-plan.md
         ├── fix.md
         └── fix_output.log
 ```
@@ -86,9 +89,10 @@ $bfk-locate
 
 - `.bfk/runner.py` 是当前 capture 的请求构造脚本。
 - 每次带新请求上下文的 capture 会先把 `.bfk/` 顶层当前 capture 产物归档到 `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`，再覆盖当前 capture。
-- 归档只包含当前存在的正式产物：`runner.py`、`request.json`、`response.json`、`output.log`、`fix_output.log`、`root-cause.md`、`fix.md`。
+- 归档只包含当前存在的正式产物：`runner.py`、`request.json`、`response.json`、`output.log`、`fix_output.log`、`root-cause.md`、`fix-plan.md`、`fix.md`。
 - `request.json`、`response.json`、`output.log` 由 `$bfk-capture` 写入。
 - `root-cause.md` 由 `$bfk-locate` 写入。
+- `fix-plan.md` 由 `$bfk-fix-plan` 写入，每次重写为当前最新版方案。
 - `fix.md` 由 `$bfk-fix` 写入；可复现回归验证时，`fix_output.log` 由 `$bfk-fix` 写入。
 - 日志直接定位场景可以没有 `runner.py`、`request.json` 或 `response.json`，但报告必须写明缺失证据。
 
@@ -147,7 +151,21 @@ $bfk-locate
 
 边界：不执行请求、不编辑代码、不写 `fix.md`。
 
-## 7. `$bfk-fix`
+## 7. `$bfk-fix-plan`
+
+作用：基于已确认的 `root-cause.md` 和相关代码生成当前最新版修复方案，供用户讨论。
+
+行为：
+
+1. 读取最新 `root-cause.md`。
+2. 若根因缺失、`unknown`、`blocked` 或不是代码缺陷，则写明无法形成具体方案及缺失证据。
+3. 读取相关代码，给出具体到文件、函数、约束和验证方式的修复方案。
+4. 若已有 `.bfk/fix-plan.md`，结合用户最新反馈重写为新的当前方案。
+5. 不维护状态、批准字段、revision 或历史记录。
+
+边界：不编辑代码、不写 `fix.md`、不执行 `fix-verify`。
+
+## 8. `$bfk-fix`
 
 作用：基于已确认的 `root-cause.md` 执行最小代码修复。
 

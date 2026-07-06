@@ -150,7 +150,16 @@ def test_request_sample_runner_reconstructs_full_request_with_replacements(tmp_p
 def test_create_capture_archives_current_capture_before_replacing_it(tmp_path: Path):
     bfk = tmp_path / ".bfk"
     bfk.mkdir()
-    for name in ["runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
+    for name in [
+        "runner.py",
+        "request.json",
+        "response.json",
+        "output.log",
+        "fix_output.log",
+        "root-cause.md",
+        "fix-plan.md",
+        "fix.md",
+    ]:
         (bfk / name).write_text("stale")
 
     capture = create_capture(tmp_path, ["account=2"], base_url="http://localhost:8000", log_files=["logs/app.log"])
@@ -162,6 +171,7 @@ def test_create_capture_archives_current_capture_before_replacing_it(tmp_path: P
     assert not (bfk / "output.log").exists()
     assert not (bfk / "fix_output.log").exists()
     assert not (bfk / "root-cause.md").exists()
+    assert not (bfk / "fix-plan.md").exists()
     assert not (bfk / "fix.md").exists()
     archive_dirs = sorted((bfk / "archive").iterdir())
     assert len(archive_dirs) == 1
@@ -173,9 +183,19 @@ def test_create_capture_archives_current_capture_before_replacing_it(tmp_path: P
         "output.log",
         "fix_output.log",
         "root-cause.md",
+        "fix-plan.md",
         "fix.md",
     }
-    for name in ["runner.py", "request.json", "response.json", "output.log", "fix_output.log", "root-cause.md", "fix.md"]:
+    for name in [
+        "runner.py",
+        "request.json",
+        "response.json",
+        "output.log",
+        "fix_output.log",
+        "root-cause.md",
+        "fix-plan.md",
+        "fix.md",
+    ]:
         assert (archive_dirs[0] / name).read_text() == "stale"
 
 

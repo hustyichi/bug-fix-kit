@@ -20,7 +20,7 @@ The release covers the local-first plugin shell:
 - `bfk doctor`
 - `bfk install --yes`
 - packaged `.codex-plugin/plugin.json` via generated `bug_fix_kit/plugin_payload/bug-fix-kit`
-- packaged `$bfk-capture`, `$bfk-locate`, and `$bfk-fix` skill surfaces
+- packaged `$bfk-capture`, `$bfk-locate`, `$bfk-fix-plan`, and `$bfk-fix` skill surfaces
 - `root-cause.md` as the locate report artifact
 
 `pip install bug-fix-kit` must not automatically enable a Codex plugin. The supported path remains `pip install bug-fix-kit`, then `bfk install --yes`, then manual Codex plugin enable instructions.
@@ -45,7 +45,7 @@ The script verifies:
 1. `python -m pytest -q`
 2. `python -m compileall -q src/bug_fix_kit scripts tests`
 3. `src/bug_fix_kit`, sdist and wheel build with isolated Hatch/PEP 517 build
-4. archive inspection for generated `bug_fix_kit/plugin_payload/bug-fix-kit` and all three skills
+4. archive inspection for generated `bug_fix_kit/plugin_payload/bug-fix-kit` and all required skills
 5. `twine check`
 6. wheel install into a fresh virtual environment
 7. sdist install into a fresh virtual environment

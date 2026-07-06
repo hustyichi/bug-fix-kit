@@ -82,6 +82,7 @@ def test_readme_has_initial_install_section():
     for text in [readme, readme_en, prd, release_checklist]:
         assert "$bfk-capture" in text
         assert "$bfk-locate" in text
+        assert "$bfk-fix-plan" in text
         assert "$bfk-fix" in text
         assert ("--" + "issue") not in text
         assert "root-cause.md" in text

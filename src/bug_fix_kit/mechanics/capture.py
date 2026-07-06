@@ -23,6 +23,7 @@ CAPTURE_ARTIFACT_NAMES = (
     "response.json",
     "output.log",
     "root-cause.md",
+    "fix-plan.md",
     "fix.md",
     "fix_output.log",
 )

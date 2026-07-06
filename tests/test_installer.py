@@ -43,6 +43,7 @@ def test_install_plugin_copies_only_payload_and_bootstraps_personal_marketplace(
     assert (target / ".codex-plugin" / "plugin.json").exists()
     assert (target / "skills" / "bfk-capture" / "SKILL.md").exists()
     assert (target / "skills" / "bfk-locate" / "SKILL.md").exists()
+    assert (target / "skills" / "bfk-fix-plan" / "SKILL.md").exists()
     assert (target / "skills" / "bfk-fix" / "SKILL.md").exists()
     assert not (target / "keep.txt").exists()
     assert not (target / "bug_fix_kit").exists()

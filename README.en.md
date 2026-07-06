@@ -4,10 +4,10 @@ Language: [简体中文](README.md) | English
 
 [![PyPI](https://img.shields.io/pypi/v/bug-fix-kit.svg)](https://pypi.org/project/bug-fix-kit/)
 
-Bug Fix Kit (`bfk`) is a local Codex plugin that turns a local service bug into three clear steps:
+Bug Fix Kit (`bfk`) is a local Codex plugin that turns a local service bug into a clear flow:
 
 ```text
-capture evidence -> locate the root cause -> apply the smallest fix
+capture evidence -> locate the root cause -> discuss a repair plan -> apply the smallest fix
 ```
 
 It is for cases where you have a local service, a request that reproduces the problem, and a local log file. BFK saves the request, response, and new logs so Codex can reason from evidence instead of guessing.
@@ -98,13 +98,21 @@ Symptom: login failed
 
 `$bfk-locate` first saves those external logs as the current `.bfk/output.log`, then continues through the same root-cause flow.
 
-### 4. Apply The Smallest Fix
+### 4. Draft A Repair Plan
+
+```text
+$bfk-fix-plan
+```
+
+`$bfk-fix-plan` reads `.bfk/root-cause.md` and related code, then writes only the latest `.bfk/fix-plan.md` without editing code. If the plan is not right, give feedback or constraints and run `$bfk-fix-plan` again; it rewrites the current plan.
+
+### 5. Apply The Smallest Fix
 
 ```text
 $bfk-fix
 ```
 
-`$bfk-fix` changes code only when `root-cause.md` confirms a code defect. When it can reuse the captured request, it reruns it and writes regression logs to `.bfk/fix_output.log`; otherwise it records the verification gap in `.bfk/fix.md`.
+`$bfk-fix` changes code only when `root-cause.md` confirms a code defect. The user decides whether to first discuss `.bfk/fix-plan.md`; running `$bfk-fix` means starting the repair. When it can reuse the captured request, it reruns it and writes regression logs to `.bfk/fix_output.log`; otherwise it records the verification gap in `.bfk/fix.md`.
 
 ## Output Structure
 
@@ -117,6 +125,7 @@ BFK keeps one active bug scene. A new `$bfk-capture` archives the previous one b
 ├── response.json    # response or error
 ├── output.log       # new logs during capture
 ├── root-cause.md    # root-cause report
+├── fix-plan.md      # latest repair plan
 ├── fix.md           # fix record
 ├── fix_output.log   # new logs during fix verification
 └── archive/         # older bug scenes
@@ -152,6 +161,7 @@ Bug work happens through Codex skills:
 ```text
 $bfk-capture
 $bfk-locate
+$bfk-fix-plan
 $bfk-fix
 ```
 
