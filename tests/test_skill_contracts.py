@@ -48,6 +48,9 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "unknown" in locate
     assert "blocked" in locate
     assert "do not guess" in locate
+    assert "expected result" in locate
+    assert "correctness criteria" in locate
+    assert "do not write `.bfk/root-cause.md`" in locate
     assert "does not modify" in locate or "does not edit" in locate
 
     fix_plan = skill_text("bfk-fix-plan").lower()

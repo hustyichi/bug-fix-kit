@@ -21,6 +21,10 @@ Use when the user invokes `$bfk-locate`, or provides logs and symptom context fo
 
 ## Root-cause standard
 
+- After `bfk locate-load` and before reading source code, check whether the evidence has an explicit failure signal: stack trace, exception, transport error, fatal/error log, or clearly failed response.
+- If there is no explicit failure signal, the user must provide an expected result or correctness criteria before root-cause location starts.
+- If the expected result or correctness criteria are missing for a no-exception case, stop and ask for them. Do not write `.bfk/root-cause.md` and do not guess from logs alone.
+- Default prompt for that blocked case: `当前证据没有发现明确异常。请告知我哪里有问题，方便我准确定位。`
 - Report `root_cause_found` only when direct-chain evidence links symptom → log/response evidence → code path → root cause.
 - Treat a final exception as proximate evidence, not a confirmed root cause, unless the log-code-chain proves why it happened.
 - Report `unknown` when evidence is insufficient; list the missing evidence.

@@ -86,7 +86,7 @@ curl --location 'http://127.0.0.1:8000/login' \
 $bfk-locate
 ```
 
-Codex 会读取 capture 产物、日志和相关代码，写出 `.bfk/root-cause.md`。如果证据不足，它会说明缺什么，而不是猜根因。
+Codex 会读取 capture 产物、日志和相关代码，写出 `.bfk/root-cause.md`。如果证据不足，它会说明缺什么，而不是猜根因。没有发现明确异常时，它会先请你说明哪里有问题。
 
 只有日志、没有可复现请求时，也可以这样用：
 

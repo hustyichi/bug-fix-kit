@@ -86,7 +86,7 @@ To change the request, provide the full context again. With no new params or con
 $bfk-locate
 ```
 
-Codex reads the capture artifacts, logs, and related code, then writes `.bfk/root-cause.md`. If the evidence is insufficient, it reports what is missing instead of guessing.
+Codex reads the capture artifacts, logs, and related code, then writes `.bfk/root-cause.md`. If the evidence is insufficient, it reports what is missing instead of guessing. When no explicit failure is found, it asks what is wrong before locating.
 
 For a log-only case, use:
 
