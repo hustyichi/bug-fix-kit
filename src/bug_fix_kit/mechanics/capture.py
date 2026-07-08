@@ -177,17 +177,17 @@ def create_capture(
         request_sample=request_sample,
         endpoint=endpoint,
     )
-    if not has_context:
-        if raw_params:
-            raise BfkError("Missing request context: provide a curl sample or base URL, endpoint, headers/body, and log file.")
-        return latest_capture(root)
-
     residue = probe_residue_files(root)
     if residue:
         raise BfkError(
             "Probe residue detected in: " + ", ".join(residue)
             + ". Run $bfk-probe --revert before starting a new capture."
         )
+
+    if not has_context:
+        if raw_params:
+            raise BfkError("Missing request context: provide a curl sample or base URL, endpoint, headers/body, and log file.")
+        return latest_capture(root)
 
     params = parse_params(raw_params)
     config = _capture_context_from_input(

@@ -485,6 +485,15 @@ def test_empty_capture_replays_existing_runner_without_new_context(tmp_path: Pat
     assert not (first / "archive").exists()
 
 
+def test_probe_residue_blocks_capture_replay(tmp_path: Path):
+    create_capture(tmp_path, ["account=1"], base_url="http://localhost:8000", log_files=["logs/app.log"])
+    (tmp_path / "app.py").write_text("x = 1  # BFK-PROBE\n")
+    _write_probe_manifest(tmp_path, ["app.py"])
+
+    with pytest.raises(BfkError, match="Probe residue detected"):
+        create_capture(tmp_path)
+
+
 def test_capture_with_params_requires_new_request_context(tmp_path: Path):
     create_capture(tmp_path, ["account=1"], base_url="http://localhost:8000", log_files=["logs/app.log"])
 
@@ -689,3 +698,22 @@ def test_run_probe_session_requires_files_and_capture(tmp_path: Path):
         run_probe_session(tmp_path, [])
     with pytest.raises(BfkError, match="No bfk capture found"):
         run_probe_session(tmp_path, ["app.py"])
+
+
+def test_probe_manifest_survives_replay_failure_for_revert(tmp_path: Path):
+    bfk = tmp_path / ".bfk"
+    bfk.mkdir()
+    (bfk / "runner.py").write_text("raise RuntimeError('boom')\n")
+    app = tmp_path / "app.py"
+    app.write_text("x = 1  # BFK-PROBE\n")
+
+    with pytest.raises(BfkError, match="failed to load runner.py"):
+        run_probe_session(tmp_path, ["app.py"])
+
+    manifest = json.loads((bfk / "probe.json").read_text())
+    assert manifest["files"] == ["app.py"]
+    assert manifest["reverted"] is False
+
+    summary = revert_probe_session(tmp_path)
+    assert summary["clean"] is True
+    assert "BFK-PROBE" not in app.read_text()

@@ -74,16 +74,6 @@ def run_probe_session(
 
     known_files = list(manifest.get("files", [])) if active else []
     all_files = sorted({*known_files, *(str(name) for name in files)})
-
-    result = _execute_capture(
-        capture_dir,
-        timeout=timeout,
-        replayed=True,
-        output_log_name="output.log",
-    )
-    logs = (capture_dir / "output.log").read_text(errors="replace")
-    sentinel_seen = PROBE_MARKER in logs
-
     created_at = (
         manifest.get("created_at")
         if active and manifest.get("created_at")
@@ -99,6 +89,15 @@ def run_probe_session(
             "reverted": False,
         },
     )
+
+    result = _execute_capture(
+        capture_dir,
+        timeout=timeout,
+        replayed=True,
+        output_log_name="output.log",
+    )
+    logs = (capture_dir / "output.log").read_text(errors="replace")
+    sentinel_seen = PROBE_MARKER in logs
 
     summary = result.to_summary()
     summary["probe"] = {
