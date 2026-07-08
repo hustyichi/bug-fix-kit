@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .artifacts import (archive_current_capture, bfk_root,
-                        probe_residue_files, write_run_artifacts)
+from .artifacts import (CAPTURE_ARTIFACT_NAMES, archive_current_capture,
+                        bfk_root, probe_residue_files, write_run_artifacts)
 from .curl import ParsedRequestSample, parse_request_sample
 from .errors import BfkError
 from .http import DEFAULT_REQUEST_TIMEOUT_SECONDS, execute_request
@@ -17,18 +17,6 @@ from .parameters import (ParameterMapping, parameter_mappings_from_sample,
                          parse_params)
 from .runner import (build_request_from_module, load_runner_module,
                      runner_log_files, runner_wait_seconds)
-
-CAPTURE_ARTIFACT_NAMES = (
-    "runner.py",
-    "request.json",
-    "response.json",
-    "output.log",
-    "root-cause.md",
-    "fix-plan.md",
-    "fix.md",
-    "fix_output.log",
-    "probe.json",
-)
 
 
 @dataclass(frozen=True)
