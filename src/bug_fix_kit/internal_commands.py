@@ -6,6 +6,7 @@ execute -> read-log -> write pipeline is fixed in code rather than re-derived by
 the model on every run:
 
 - ``$bfk-capture`` -> ``bfk capture-run``
+- ``$bfk-probe``   -> ``bfk probe-run`` / ``bfk probe-revert``
 - ``$bfk-fix``     -> ``bfk fix-verify``
 - ``$bfk-locate``  -> ``bfk locate-load``
 """
@@ -21,6 +22,7 @@ from .mechanics.capture import run_capture_session
 from .mechanics.fix import run_fix_verification
 from .mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
 from .mechanics.locate import import_external_logs, load_capture_evidence
+from .mechanics.probe import revert_probe_session, run_probe_session
 
 
 def _resolve_root(value: Path | None) -> Path:
@@ -77,6 +79,16 @@ def _cmd_log_import(args: argparse.Namespace) -> int:
     return _print_summary(import_external_logs(_resolve_root(args.root), list(args.log_file or [])))
 
 
+def _cmd_probe_run(args: argparse.Namespace) -> int:
+    return _print_summary(
+        run_probe_session(_resolve_root(args.root), list(args.file or []), timeout=args.timeout)
+    )
+
+
+def _cmd_probe_revert(args: argparse.Namespace) -> int:
+    return _print_summary(revert_probe_session(_resolve_root(args.root), list(args.file or [])))
+
+
 def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     """Register the hidden skill-backing commands (no ``help=`` keeps them out of ``--help``)."""
     capture_run = subparsers.add_parser("capture-run")
@@ -105,3 +117,14 @@ def register_internal_commands(subparsers: argparse._SubParsersAction) -> None:
     log_import.add_argument("--root", type=Path, default=None)
     log_import.add_argument("--log-file", dest="log_file", action="append", required=True)
     log_import.set_defaults(func=_cmd_log_import)
+
+    probe_run = subparsers.add_parser("probe-run")
+    probe_run.add_argument("--root", type=Path, default=None)
+    probe_run.add_argument("--file", dest="file", action="append", required=True)
+    probe_run.add_argument("--timeout", type=float, default=DEFAULT_REQUEST_TIMEOUT_SECONDS)
+    probe_run.set_defaults(func=_cmd_probe_run)
+
+    probe_revert = subparsers.add_parser("probe-revert")
+    probe_revert.add_argument("--root", type=Path, default=None)
+    probe_revert.add_argument("--file", dest="file", action="append", default=[])
+    probe_revert.set_defaults(func=_cmd_probe_revert)

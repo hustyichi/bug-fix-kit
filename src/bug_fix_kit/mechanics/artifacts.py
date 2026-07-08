@@ -17,13 +17,45 @@ CAPTURE_ARTIFACT_NAMES = (
     "fix-plan.md",
     "fix.md",
     "fix_output.log",
+    "probe.json",
 )
 
 ARCHIVE_TRIGGER_ARTIFACT_NAMES = tuple(name for name in CAPTURE_ARTIFACT_NAMES if name != "runner.py")
 
+# Literal marker required on every temporary probe log line inserted by
+# ``$bfk-probe``. Revert and residue detection key off this exact string.
+PROBE_MARKER = "BFK-PROBE"
+
 
 def bfk_root(root: Path) -> Path:
     return root / ".bfk"
+
+
+def probe_manifest_path(capture_dir: Path) -> Path:
+    return capture_dir / "probe.json"
+
+
+def load_probe_manifest(capture_dir: Path) -> dict[str, Any] | None:
+    path = probe_manifest_path(capture_dir)
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def probe_residue_files(root: Path) -> list[str]:
+    """List probe-session files that still contain the probe marker."""
+    manifest = load_probe_manifest(bfk_root(root))
+    if not manifest:
+        return []
+    residue: list[str] = []
+    for name in manifest.get("files", []):
+        candidate = Path(name).expanduser()
+        path = candidate if candidate.is_absolute() else root / candidate
+        if path.exists() and PROBE_MARKER in path.read_text(errors="replace"):
+            residue.append(str(name))
+    return residue
 
 
 def _next_archive_dir(archive_root: Path) -> Path:

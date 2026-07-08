@@ -7,8 +7,9 @@ Bug Fix Kit（`bfk`）是一个本地 Codex 插件包，用于把一次本地服
 当前实现采用本地证据优先的 minimal 形态：
 
 - Python stdlib helper CLI 只负责插件安装、外壳检查，以及 skills 复用的确定性请求/日志/artifact mechanics。
-- Codex skills 暴露四个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-fix-plan`、`$bfk-fix`。
+- Codex skills 暴露五个步骤：`$bfk-capture`、`$bfk-locate`、`$bfk-probe`、`$bfk-fix-plan`、`$bfk-fix`。
 - 根因定位必须基于日志/响应证据和代码直线链路；证据不足时输出 `unknown` 或 `blocked`，不能猜根因。
+- 缺关键日志时，`$bfk-probe` 可以插入带 `BFK-PROBE` 标记的临时探针日志补证据；探针必须可以通过 `$bfk-probe --revert` 完全撤销，撤销后代码零残留。
 - 当前实现只跟踪一个活动 capture；`.bfk/` 顶层就是当前 capture，不维护按名称区分的多 capture。`fix-plan.md` 只保留当前最新版修复方案，不维护状态或历史。
 
 MVP 不内置 demo HTTP app、不提供 Web UI、不自动 mock 外部依赖。
@@ -49,6 +50,8 @@ CLI 不提供公共问题处理命令。
 ```text
 $bfk-capture <key=value ...>
 $bfk-locate
+$bfk-probe
+$bfk-probe --revert
 $bfk-fix-plan
 $bfk-fix
 ```
@@ -70,6 +73,7 @@ $bfk-locate
 ├── response.json
 ├── output.log
 ├── root-cause.md
+├── probe.json
 ├── fix-plan.md
 ├── fix.md
 ├── fix_output.log
@@ -80,6 +84,7 @@ $bfk-locate
         ├── response.json
         ├── output.log
         ├── root-cause.md
+        ├── probe.json
         ├── fix-plan.md
         ├── fix.md
         └── fix_output.log
@@ -89,9 +94,10 @@ $bfk-locate
 
 - `.bfk/runner.py` 是当前 capture 的请求构造脚本。
 - 每次带新请求上下文的 capture 会先把 `.bfk/` 顶层当前 capture 产物归档到 `.bfk/archive/YYYY-MM-DD_HH-mm-ss/`，再覆盖当前 capture。
-- 归档只包含当前存在的正式产物：`runner.py`、`request.json`、`response.json`、`output.log`、`fix_output.log`、`root-cause.md`、`fix-plan.md`、`fix.md`。
+- 归档只包含当前存在的正式产物：`runner.py`、`request.json`、`response.json`、`output.log`、`fix_output.log`、`root-cause.md`、`fix-plan.md`、`fix.md`、`probe.json`。
 - `request.json`、`response.json`、`output.log` 由 `$bfk-capture` 写入。
 - `root-cause.md` 由 `$bfk-locate` 写入。
+- `probe.json` 由 `bfk probe-run` 写入；probe 重放刷新统一的 `output.log`（同一请求的证据超集），不引入额外日志文件。
 - `fix-plan.md` 由 `$bfk-fix-plan` 写入，每次重写为当前最新版方案。
 - `fix.md` 由 `$bfk-fix` 写入；可复现回归验证时，`fix_output.log` 由 `$bfk-fix` 写入。
 - 日志直接定位场景可以没有 `runner.py`、`request.json` 或 `response.json`，但报告必须写明缺失证据。
@@ -116,7 +122,7 @@ $bfk-locate
 7. 采集 request、response 和 offset 后新增日志。
 8. 写入 `.bfk/request.json`、`.bfk/response.json`、`.bfk/output.log`。
 
-边界：不定位根因、不编辑代码、不写 `root-cause.md`、`fix-plan.md` 或 `fix.md`。
+边界：不定位根因、不编辑代码、不写 `root-cause.md`、`fix-plan.md` 或 `fix.md`；代码中存在 `BFK-PROBE` 探针残留时拒绝开始新 capture，提示先执行 `$bfk-probe --revert`。
 
 ## 6. `$bfk-locate`
 
@@ -136,8 +142,10 @@ $bfk-locate
 - 无异常场景缺少期望结果/判定标准时，停止定位并请用户说明哪里有问题，不写 `root-cause.md`，不能猜根因。
 - 有“症状 -> 日志/响应证据 -> 代码路径 -> 根因”的直线链路时，输出 `root_cause_found`。
 - 证据不足时，输出 `unknown` 并列出缺失证据。
+- 缺失证据是关键应用日志且存在可复现 capture 时，在总结中建议使用 `$bfk-probe` 补充探针日志。
 - 服务、日志、输入或代码上下文不可用时，输出 `blocked`。
 - 最终异常只能作为近端证据，不能单独当作已确认根因。
+- `$bfk-probe` 运行后，探针证据已在统一的 `.bfk/output.log` 中；写完 `root-cause.md` 后若探针会话未撤销，提醒用户执行 `$bfk-probe --revert`，locate 自身不修改代码。
 
 输出 `root-cause.md`，建议字段：
 
@@ -153,7 +161,34 @@ $bfk-locate
 
 边界：不执行请求、不编辑代码、不写 `fix.md`。
 
-## 7. `$bfk-fix-plan`
+## 7. `$bfk-probe`
+
+作用：`$bfk-locate` 因缺关键日志输出 `unknown` 时，插入可撤销的临时探针日志补充证据；`$bfk-probe --revert` 负责完全撤销。
+
+探针规则：
+
+- 每条探针必须是独立成行的纯日志语句，且包含字面标记 `BFK-PROBE`。
+- 每轮最多 5 条探针，每个 capture 最多 2 轮；`bfk probe-run` 强制轮次上限。
+- 禁止在热路径或循环体内插探针。
+- 禁止打印敏感信息：密码、token、cookie、authorization 值和完整请求体一律不打；只打 id、分支走向和 `missing_evidence` 指名的关键值。
+- 必须包含一条请求必经路径上的哨兵探针，用于验证插桩已生效。
+
+行为：
+
+1. 读取 `root-cause.md` 的 `missing_evidence` 和相关代码，确定最小探针点集合，并向用户说明每条探针的位置、打印内容和对应缺失证据。
+2. 插入探针后执行 `bfk probe-run --file <path>`（每个被插桩文件一个 `--file`），重放当前 runner，写 `.bfk/probe.json` 并刷新统一的 `.bfk/output.log`（同一请求重放，新日志是原证据的超集）。
+3. `sentinel_seen: false` 时判定服务未重载探针，输出 blocked 并提示重启服务，不得基于缺失的探针日志推理。
+4. `sentinel_seen: true` 时总结新增证据，请用户重新运行 `$bfk-locate`。
+5. `$bfk-probe --revert` 执行 `bfk probe-revert`：删除所有含 `BFK-PROBE` 标记的行（探针是独立整行，删除即精确还原），随后校验零残留。
+
+防线：
+
+- `bfk capture-run`（新 capture）、`bfk log-import` 和 `bfk fix-verify` 检测到探针残留时报错，提示先执行 `$bfk-probe --revert`。
+- `$bfk-fix` 改代码前通过 `bfk locate-load` 的 `probe_session.residue_files` 检查残留，存在残留则拒绝并写 `blocked` 的 `fix.md`。
+
+边界：不分析根因、不写 `root-cause.md`/`fix-plan.md`/`fix.md`、不改动任何应用逻辑；无 `.bfk/runner.py` 时输出 blocked。
+
+## 8. `$bfk-fix-plan`
 
 作用：基于已确认的 `root-cause.md` 和相关代码生成当前最新版修复方案，供用户讨论。
 
@@ -167,7 +202,7 @@ $bfk-locate
 
 边界：不编辑代码、不写 `fix.md`、不执行 `fix-verify`。
 
-## 8. `$bfk-fix`
+## 9. `$bfk-fix`
 
 作用：基于已确认的 `root-cause.md` 执行最小代码修复；若 `.bfk/fix-plan.md` 存在，则优先遵循该方案。
 
@@ -175,11 +210,12 @@ $bfk-locate
 
 1. 读取最新 `root-cause.md`。
 2. 若状态为 `unknown`、`blocked`、缺失根因或不是代码缺陷，则拒绝编辑。
-3. 若存在 `.bfk/fix-plan.md`，读取并优先遵循其中的 proposed fix、files、constraints、rejected options 和 verification plan。
-4. 若方案缺失，则直接从已确认根因推导最小修复。
-5. 若方案过期、过宽或与已确认根因冲突，则不静默忽略方案，写入 `refused` 或 `blocked` 的 `fix.md` 并说明原因。
-6. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证，将回归新增日志写入 `.bfk/fix_output.log`，不覆盖 `.bfk/output.log`。
-7. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
+3. 若 `.bfk/probe.json` 存在，先通过 `bfk locate-load` 检查 `probe_session.residue_files`；非空时拒绝编辑，写 `blocked` 的 `fix.md` 并提示执行 `$bfk-probe --revert`。
+4. 若存在 `.bfk/fix-plan.md`，读取并优先遵循其中的 proposed fix、files、constraints、rejected options 和 verification plan。
+5. 若方案缺失，则直接从已确认根因推导最小修复。
+6. 若方案过期、过宽或与已确认根因冲突，则不静默忽略方案，写入 `refused` 或 `blocked` 的 `fix.md` 并说明原因。
+7. 有可复现 capture 上下文时，复用 `.bfk/` 下当前请求验证，将回归新增日志写入 `.bfk/fix_output.log`，不覆盖 `.bfk/output.log`。
+8. 只有日志上下文时，写 `changed_unverified`，并提示用户补充请求或手动验证。
 
 最终状态：
 
@@ -191,13 +227,13 @@ $bfk-locate
 
 边界：不猜修、不做无关重构、不声称未执行过的验证。
 
-## 8. 输出语言
+## 10. 输出语言
 
 - 给用户阅读的说明默认使用中文，包括 capture 摘要、`root-cause.md` 和 `fix.md` 中的描述。
 - 用户明确要求其他语言时，按用户意图输出。
 - 状态值、字段名、文件路径、代码符号、JSON key、HTTP 字段和日志原文保持原样。
 
-## 9. 验收标准
+## 11. 验收标准
 
 必过检查：
 

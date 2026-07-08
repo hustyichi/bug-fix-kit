@@ -11,9 +11,11 @@ import pytest
 import bug_fix_kit.mechanics.artifacts as mechanics_artifacts
 from bug_fix_kit.mechanics import (BfkError, archive_current_capture,
                                    capture_offsets, create_capture,
-                                   execute_request, latest_capture,
-                                   load_runner_request, read_since_offsets,
-                                   write_run_artifacts)
+                                   execute_request, import_external_logs,
+                                   latest_capture, load_runner_request,
+                                   probe_residue_files, read_since_offsets,
+                                   revert_probe_session, run_fix_verification,
+                                   run_probe_session, write_run_artifacts)
 from bug_fix_kit.mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 
@@ -593,3 +595,97 @@ def test_project_headers_are_preserved_in_generated_runner(tmp_path: Path):
     assert request["headers"]["Authorization"] == "Bearer devtoken"
     assert request["headers"]["Content-Type"] == "application/json"
     assert ("X-BugFix-" + "Issue") not in request["headers"]
+
+
+def _write_probe_manifest(root: Path, files: list[str], *, reverted: bool = False) -> None:
+    bfk = root / ".bfk"
+    bfk.mkdir(parents=True, exist_ok=True)
+    (bfk / "probe.json").write_text(
+        json.dumps({"marker": "BFK-PROBE", "round": 1, "files": files, "reverted": reverted})
+    )
+
+
+def test_revert_probe_session_strips_only_marker_lines(tmp_path: Path):
+    app = tmp_path / "app.py"
+    app.write_text(
+        "def login():\n"
+        '    logger.info("[BFK-PROBE] enter login")  # BFK-PROBE\n'
+        "    return check(account)\n"
+    )
+    _write_probe_manifest(tmp_path, ["app.py"])
+
+    summary = revert_probe_session(tmp_path)
+
+    assert summary["clean"] is True
+    assert summary["reverted_files"] == [{"file": "app.py", "method": "strip"}]
+    assert app.read_text() == "def login():\n    return check(account)\n"
+
+
+def test_revert_probe_session_keeps_user_edits_on_other_lines(tmp_path: Path):
+    app = tmp_path / "app.py"
+    # User edit on a normal line plus a probe line: only the probe line goes.
+    app.write_text(
+        "def login():\n"
+        '    logger.info("[BFK-PROBE] enter login")  # BFK-PROBE\n'
+        "    return check(account, strict=True)\n"
+    )
+    _write_probe_manifest(tmp_path, ["app.py"])
+
+    summary = revert_probe_session(tmp_path)
+
+    assert summary["clean"] is True
+    assert summary["reverted_files"] == [{"file": "app.py", "method": "strip"}]
+    assert app.read_text() == "def login():\n    return check(account, strict=True)\n"
+
+
+def test_revert_probe_session_without_session_is_an_error(tmp_path: Path):
+    with pytest.raises(BfkError, match="No probe session to revert"):
+        revert_probe_session(tmp_path)
+
+
+def test_probe_residue_files_reports_only_files_still_marked(tmp_path: Path):
+    marked = tmp_path / "marked.py"
+    marked.write_text("x = 1  # BFK-PROBE\n")
+    clean = tmp_path / "clean.py"
+    clean.write_text("x = 1\n")
+    _write_probe_manifest(tmp_path, ["marked.py", "clean.py", "gone.py"])
+
+    assert probe_residue_files(tmp_path) == ["marked.py"]
+
+
+def test_probe_residue_blocks_new_capture(tmp_path: Path):
+    (tmp_path / "app.py").write_text("x = 1  # BFK-PROBE\n")
+    _write_probe_manifest(tmp_path, ["app.py"])
+
+    with pytest.raises(BfkError, match="Probe residue detected"):
+        create_capture(
+            tmp_path,
+            ["account=1"],
+            base_url="http://localhost:8000",
+            log_files=["logs/app.log"],
+        )
+
+
+def test_probe_residue_blocks_fix_verification(tmp_path: Path):
+    (tmp_path / "app.py").write_text("x = 1  # BFK-PROBE\n")
+    _write_probe_manifest(tmp_path, ["app.py"])
+
+    with pytest.raises(BfkError, match="Probe residue detected"):
+        run_fix_verification(tmp_path)
+
+
+def test_probe_residue_blocks_external_log_import(tmp_path: Path):
+    (tmp_path / "app.py").write_text("x = 1  # BFK-PROBE\n")
+    _write_probe_manifest(tmp_path, ["app.py"])
+    external = tmp_path / "external.log"
+    external.write_text("boom\n")
+
+    with pytest.raises(BfkError, match="Probe residue detected"):
+        import_external_logs(tmp_path, [str(external)])
+
+
+def test_run_probe_session_requires_files_and_capture(tmp_path: Path):
+    with pytest.raises(BfkError, match="Missing probe files"):
+        run_probe_session(tmp_path, [])
+    with pytest.raises(BfkError, match="No bfk capture found"):
+        run_probe_session(tmp_path, ["app.py"])

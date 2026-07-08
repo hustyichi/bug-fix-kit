@@ -10,6 +10,7 @@ Use when the user invokes `$bfk-locate`, or provides logs and symptom context fo
 ## Boundary
 
 - Reads the current capture by default: `.bfk/request.json`, `.bfk/response.json`, and `.bfk/output.log` when present.
+- After `$bfk-probe` has run, `.bfk/output.log` already contains the probe evidence; `bfk locate-load` also returns the probe session state.
 - Loads the captured evidence deterministically through the internal command `bfk locate-load`, which returns the parsed request/response, output log text, and a list of missing evidence files as JSON.
 - Also supports direct log input when the user gives log file(s) plus symptom text and codebase context.
 - When direct log file(s) are provided, first run one `bfk log-import` command with one `--log-file <path>` flag per file so the raw log content becomes the current `.bfk/output.log`, then run `bfk locate-load`.
@@ -28,8 +29,10 @@ Use when the user invokes `$bfk-locate`, or provides logs and symptom context fo
 - Report `root_cause_found` only when direct-chain evidence links symptom → log/response evidence → code path → root cause.
 - Treat a final exception as proximate evidence, not a confirmed root cause, unless the log-code-chain proves why it happened.
 - Report `unknown` when evidence is insufficient; list the missing evidence.
+- When the missing evidence is key application logs and a reproducible capture exists, recommend `$bfk-probe` in the summary so the user can collect the missing logs with reversible probe lines.
 - Report `blocked` when service, logs, inputs, or code context are unavailable enough to prevent analysis.
 - Do not guess. Do not present a plausible cause as confirmed without direct-chain evidence.
+- After writing `.bfk/root-cause.md`, if `bfk locate-load` reported an active probe session (`probe_session.reverted` is false), remind the user to run `$bfk-probe --revert` to remove the probe lines. Do not revert them yourself.
 
 ## `root-cause.md` fields
 

@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .artifacts import CAPTURE_ARTIFACT_NAMES, archive_current_capture, bfk_root
+from .artifacts import (CAPTURE_ARTIFACT_NAMES, archive_current_capture,
+                        bfk_root, load_probe_manifest, probe_residue_files)
 from .errors import BfkError
 
 
@@ -28,6 +29,7 @@ def load_capture_evidence(root: Path) -> dict[str, Any]:
     output_log_path = capture_dir / "output.log"
 
     output_log = output_log_path.read_text(errors="replace") if output_log_path.exists() else None
+    probe_manifest = load_probe_manifest(capture_dir)
     missing = [
         name
         for name, path in (
@@ -47,6 +49,16 @@ def load_capture_evidence(root: Path) -> dict[str, Any]:
         "response": _read_json(response_path) if response_path.exists() else None,
         "output_log": output_log,
         "output_log_bytes": len(output_log.encode("utf-8")) if output_log is not None else 0,
+        "probe_session": (
+            {
+                "round": int(probe_manifest.get("round", 0)),
+                "files": list(probe_manifest.get("files", [])),
+                "reverted": bool(probe_manifest.get("reverted")),
+                "residue_files": probe_residue_files(root),
+            }
+            if probe_manifest
+            else None
+        ),
         "root_cause_exists": (capture_dir / "root-cause.md").exists(),
         "missing_evidence": missing,
     }
@@ -55,6 +67,13 @@ def load_capture_evidence(root: Path) -> dict[str, Any]:
 def import_external_logs(root: Path, log_files: list[str]) -> dict[str, Any]:
     if not log_files:
         raise BfkError("Missing log input: provide at least one --log-file.")
+
+    residue = probe_residue_files(root)
+    if residue:
+        raise BfkError(
+            "Probe residue detected in: " + ", ".join(residue)
+            + ". Run $bfk-probe --revert before importing new logs."
+        )
 
     capture_dir = bfk_root(root)
     capture_dir.mkdir(parents=True, exist_ok=True)

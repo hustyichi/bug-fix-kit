@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from .artifacts import archive_current_capture, bfk_root, write_run_artifacts
+from .artifacts import (archive_current_capture, bfk_root,
+                        probe_residue_files, write_run_artifacts)
 from .curl import ParsedRequestSample, parse_request_sample
 from .errors import BfkError
 from .http import DEFAULT_REQUEST_TIMEOUT_SECONDS, execute_request
@@ -26,6 +27,7 @@ CAPTURE_ARTIFACT_NAMES = (
     "fix-plan.md",
     "fix.md",
     "fix_output.log",
+    "probe.json",
 )
 
 
@@ -191,6 +193,13 @@ def create_capture(
         if raw_params:
             raise BfkError("Missing request context: provide a curl sample or base URL, endpoint, headers/body, and log file.")
         return latest_capture(root)
+
+    residue = probe_residue_files(root)
+    if residue:
+        raise BfkError(
+            "Probe residue detected in: " + ", ".join(residue)
+            + ". Run $bfk-probe --revert before starting a new capture."
+        )
 
     params = parse_params(raw_params)
     config = _capture_context_from_input(

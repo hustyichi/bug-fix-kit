@@ -15,7 +15,7 @@ from bug_fix_kit.mechanics.http import DEFAULT_REQUEST_TIMEOUT_SECONDS
 
 ROOT = Path(__file__).resolve().parents[1]
 
-INTERNAL_COMMANDS = ["capture-run", "fix-verify", "locate-load", "log-import"]
+INTERNAL_COMMANDS = ["capture-run", "fix-verify", "locate-load", "log-import", "probe-run", "probe-revert"]
 
 
 def run_bfk(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -181,10 +181,12 @@ def test_locate_load_command_name_and_summary_shape(tmp_path: Path):
         "response",
         "output_log",
         "output_log_bytes",
+        "probe_session",
         "root_cause_exists",
         "missing_evidence",
     }
     assert summary["has_request"] is False
+    assert summary["probe_session"] is None
     assert summary["missing_evidence"] == [
         "request.json",
         "response.json",
@@ -248,3 +250,157 @@ def test_capture_run_malformed_header_is_normalized(tmp_path: Path):
     assert result.returncode == 2
     assert "Traceback" not in result.stderr
     assert "--header" in result.stderr
+
+
+def _make_probed_server(log_path: Path) -> ThreadingHTTPServer:
+    """Service variant that also writes probe marker lines, as if instrumented."""
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 - http.server API
+            length = int(self.headers.get("Content-Length", 0))
+            self.rfile.read(length)
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(f"POST {self.path} 401\n")
+                handle.write("[BFK-PROBE] enter login handler\n")
+            body = json.dumps({"ok": False, "error": "login failed"}).encode()
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args) -> None:
+            return
+
+    return ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+
+
+@pytest.fixture()
+def probed_service(tmp_path: Path):
+    log_path = tmp_path / "app.log"
+    server = _make_probed_server(log_path)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def _capture(tmp_path: Path, port: int) -> None:
+    result = run_bfk(
+        tmp_path,
+        "capture-run",
+        "account=13900000000",
+        "--base-url",
+        f"http://127.0.0.1:{port}",
+        "--endpoint",
+        "POST /login",
+        "--log-file",
+        "app.log",
+        "--wait",
+        "0",
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_probe_run_revert_roundtrip(tmp_path: Path, probed_service):
+    port = probed_service
+    _capture(tmp_path, port)
+
+    app = tmp_path / "app.py"
+    app.write_text('def login():\n    print("[BFK-PROBE] enter login handler")  # BFK-PROBE\n    return 401\n')
+
+    result = run_bfk(tmp_path, "probe-run", "--file", "app.py")
+
+    assert result.returncode == 0, result.stderr
+    summary = json.loads(result.stdout)
+    assert summary["output_log_name"] == "output.log"
+    assert summary["probe"] == {
+        "marker": "BFK-PROBE",
+        "round": 1,
+        "max_rounds": 2,
+        "files": ["app.py"],
+        "sentinel_seen": True,
+    }
+    # The probe replay refreshes the unified evidence log in place.
+    assert "[BFK-PROBE] enter login handler" in (tmp_path / ".bfk" / "output.log").read_text()
+    assert not (tmp_path / ".bfk" / "probe_output.log").exists()
+
+    status = json.loads(run_bfk(tmp_path, "locate-load").stdout)["probe_session"]
+    assert status["reverted"] is False
+    assert status["residue_files"] == ["app.py"]
+
+    # A new capture must refuse to start while probe residue remains.
+    blocked = run_bfk(
+        tmp_path,
+        "capture-run",
+        "account=1",
+        "--base-url",
+        f"http://127.0.0.1:{port}",
+        "--log-file",
+        "app.log",
+    )
+    assert blocked.returncode == 1
+    assert "Probe residue detected" in blocked.stderr
+    assert "$bfk-probe --revert" in blocked.stderr
+
+    revert = run_bfk(tmp_path, "probe-revert")
+    assert revert.returncode == 0, revert.stderr
+    revert_summary = json.loads(revert.stdout)
+    assert revert_summary["clean"] is True
+    assert revert_summary["residue_files"] == []
+    assert revert_summary["reverted_files"] == [{"file": "app.py", "method": "strip"}]
+    assert "BFK-PROBE" not in app.read_text()
+    assert 'def login():' in app.read_text()
+
+    status = json.loads(run_bfk(tmp_path, "locate-load").stdout)["probe_session"]
+    assert status["reverted"] is True
+    assert status["residue_files"] == []
+
+    evidence = json.loads(run_bfk(tmp_path, "locate-load").stdout)
+    assert "[BFK-PROBE] enter login handler" in evidence["output_log"]
+    assert evidence["probe_session"]["reverted"] is True
+
+
+def test_probe_run_requires_existing_capture(tmp_path: Path):
+    (tmp_path / "app.py").write_text("x = 1  # BFK-PROBE\n")
+
+    result = run_bfk(tmp_path, "probe-run", "--file", "app.py")
+
+    assert result.returncode == 1
+    assert "No bfk capture found" in result.stderr
+
+
+def test_probe_run_enforces_round_limit(tmp_path: Path, probed_service):
+    port = probed_service
+    _capture(tmp_path, port)
+    app = tmp_path / "app.py"
+    app.write_text("x = 1  # BFK-PROBE\n")
+
+    assert run_bfk(tmp_path, "probe-run", "--file", "app.py").returncode == 0
+    assert run_bfk(tmp_path, "probe-run", "--file", "app.py").returncode == 0
+    third = run_bfk(tmp_path, "probe-run", "--file", "app.py")
+
+    assert third.returncode == 1
+    assert "Probe round limit reached" in third.stderr
+
+    # Reverting resets the session so probing can start again.
+    assert run_bfk(tmp_path, "probe-revert").returncode == 0
+    app.write_text("x = 1  # BFK-PROBE\n")
+    again = run_bfk(tmp_path, "probe-run", "--file", "app.py")
+    assert again.returncode == 0
+    assert json.loads(again.stdout)["probe"]["round"] == 1
+
+
+def test_probe_run_requires_marker_in_files(tmp_path: Path, probed_service):
+    port = probed_service
+    _capture(tmp_path, port)
+    (tmp_path / "app.py").write_text("x = 1\n")
+
+    result = run_bfk(tmp_path, "probe-run", "--file", "app.py")
+
+    assert result.returncode == 1
+    assert "No BFK-PROBE line found" in result.stderr

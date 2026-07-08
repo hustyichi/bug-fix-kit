@@ -38,6 +38,8 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "fix_output.log" in capture
     assert "does not analyze root cause" in capture
     assert "does not modify" in capture or "does not edit" in capture
+    assert "probe residue" in capture
+    assert "$bfk-probe --revert" in capture
 
     locate = skill_text("bfk-locate").lower()
     assert "root-cause.md" in locate
@@ -52,6 +54,10 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "correctness criteria" in locate
     assert "do not write `.bfk/root-cause.md`" in locate
     assert "does not modify" in locate or "does not edit" in locate
+    assert "probe evidence" in locate
+    assert "recommend `$bfk-probe`" in locate
+    assert "$bfk-probe --revert" in locate
+    assert "do not revert them yourself" in locate
 
     fix_plan = skill_text("bfk-fix-plan").lower()
     assert "root-cause.md" in fix_plan
@@ -76,6 +82,24 @@ def test_capture_locate_fix_boundaries_are_explicit():
     assert "unknown" in fix
     assert "blocked" in fix
     assert "does not guess" in fix
+    assert "probe_session.residue_files" in fix
+    assert "bfk-probe --revert" in fix
+
+    probe = skill_text("bfk-probe").lower()
+    assert "bfk-probe" in probe
+    assert "probe-run" in probe
+    assert "probe-revert" in probe
+    assert "bfk-probe --revert" in probe
+    assert "probe.json" in probe
+    assert "output.log" in probe
+    assert "sentinel" in probe
+    assert "sentinel_seen" in probe
+    assert "residue" in probe
+    assert "at most 2 probe rounds" in probe
+    assert "never logs secrets" in probe
+    assert "does not analyze root cause" in probe
+    assert "does not change any application logic" in probe
+    assert "blocked" in probe
 
 
 def test_bfk_skills_default_to_chinese_output_unless_user_specifies_language():

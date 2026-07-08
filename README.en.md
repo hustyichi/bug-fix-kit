@@ -98,7 +98,29 @@ Symptom: login failed
 
 `$bfk-locate` first saves those external logs as the current `.bfk/output.log`, then continues through the same root-cause flow.
 
-### 4. Draft A Repair Plan
+### 4. Add Probe Logs When Key Evidence Is Missing (Optional)
+
+If `$bfk-locate` reports `unknown` because key logs are missing, let BFK insert temporary probe logs to collect the evidence:
+
+```text
+$bfk-probe
+```
+
+`$bfk-probe`:
+
+- Inserts a few log lines marked with `BFK-PROBE` at the relevant code paths, driven by the missing evidence in `root-cause.md` (at most 5 probes per round, 2 rounds; never logs passwords, tokens, or other secrets).
+- Replays the same request and refreshes `.bfk/output.log` with the probe-enriched logs.
+- If the probe logs do not appear (the service likely did not reload), it asks you to restart the service instead of reasoning from missing logs.
+
+Then rerun `$bfk-locate`. After the root cause is located, remove every probe with one command:
+
+```text
+$bfk-probe --revert
+```
+
+Revert deletes every `BFK-PROBE` line (probes are standalone lines, so deletion restores the original content exactly), then verifies zero residue. While probes remain, new `$bfk-capture` and `$bfk-fix` runs refuse to proceed and remind you to revert first.
+
+### 5. Draft A Repair Plan
 
 ```text
 $bfk-fix-plan
@@ -106,7 +128,7 @@ $bfk-fix-plan
 
 `$bfk-fix-plan` reads `.bfk/root-cause.md` and related code, then writes only the latest `.bfk/fix-plan.md` without editing code. If the plan is not right, give feedback or constraints and run `$bfk-fix-plan` again; it rewrites the current plan.
 
-### 5. Apply The Smallest Fix
+### 6. Apply The Smallest Fix
 
 ```text
 $bfk-fix
@@ -123,8 +145,9 @@ BFK keeps one active bug scene. A new `$bfk-capture` archives the previous one b
 ├── runner.py        # current capture request script
 ├── request.json     # actual request
 ├── response.json    # response or error
-├── output.log       # new logs during capture
+├── output.log       # new logs during capture (includes probe logs after a probe replay)
 ├── root-cause.md    # root-cause report
+├── probe.json       # probe session state (when $bfk-probe is used)
 ├── fix-plan.md      # latest repair plan
 ├── fix.md           # fix record
 ├── fix_output.log   # new logs during fix verification
@@ -161,6 +184,7 @@ Bug work happens through Codex skills:
 ```text
 $bfk-capture
 $bfk-locate
+$bfk-probe
 $bfk-fix-plan
 $bfk-fix
 ```
@@ -178,6 +202,10 @@ Check three things:
 - The service did not write the log after capture finished.
 
 If needed, use an absolute log path or ask BFK to wait longer after the request.
+
+### Will probe logs stay in my code?
+
+No. Every probe line carries the unique `BFK-PROBE` marker, and `$bfk-probe --revert` removes all of them and verifies zero residue. While probes remain, new `$bfk-capture` and `$bfk-fix` runs refuse to proceed so probes cannot be forgotten or committed by accident.
 
 ### Can Codex inspect only an error log?
 
