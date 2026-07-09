@@ -1,6 +1,6 @@
 {
   "name": "bug-fix-kit",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Local Codex plugin for capturing bug evidence, locating root cause, and applying minimal fixes.",
   "author": {
     "name": "Bryan"
